@@ -1,3 +1,6 @@
+/*
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -10,4 +13,35 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+*/@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-dark text-white font-sans;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+@layer components {
+    /* Упрощенный gradient-text без проблемного класса */
+    .gradient-text {
+        @apply bg-gradient-to-r from-primary-start to-primary-end bg-clip-text text-transparent;
+    }
+
+    .container-custom {
+        @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+    }
+}
+
+/* Временные стили для проверки */
+.bg-dark {
+    background-color: #1A1E2B;
+}
+
+.text-white {
+    color: white;
 }
