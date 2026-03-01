@@ -11,6 +11,7 @@ import {
     HiDocumentText,
     HiPencil,
     HiMiniRectangleStack,
+    HiMiniUserCircle,
 } from 'react-icons/hi2';
 import LetterGlitch from '../components/LetterGlitch';
 import Folder from '../components/Folder';
@@ -32,7 +33,6 @@ const Landing = () => {
                 />
             </div>
 
-            {/* Градиентный оверлей */}
             <div className="fixed inset-0 bg-gradient-to-b from-transparent via-dark/60 to-dark z-0 pointer-events-none" />
 
             {/* Навигация */}
@@ -51,11 +51,9 @@ const Landing = () => {
 
                         {/* Кнопки */}
                         <div className="flex items-center gap-4">
-                            <Link to="/login" className="px-4 py-2 border border-white/20 rounded-lg text-white hover:bg-white/10 transition">
-                                Вход
-                            </Link>
-                            <Link to="/register" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
-                                Регистрация
+
+                            <Link to="/auth" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
+                                <HiMiniUserCircle  className="w-6 h-6 text-white" />
                             </Link>
                         </div>
                     </div>
@@ -83,7 +81,7 @@ const Landing = () => {
                             </p>
 
                             <div className="flex flex-wrap gap-4 mb-12">
-                                <Link to="/register" className="px-8 py-4 bg-gradient-primary rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-primary-start/25 transition flex items-center gap-2 group">
+                                <Link to="/auth" className="px-8 py-4 bg-gradient-primary rounded-lg text-white font-semibold hover:shadow-lg hover:shadow-primary-start/25 transition flex items-center gap-2 group">
                                     Начать учиться
                                     <HiArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                 </Link>
