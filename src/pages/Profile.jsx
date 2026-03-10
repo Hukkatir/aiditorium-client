@@ -333,7 +333,7 @@ const Profile = () => {
                                 )}
                             </div>
 
-                            {/* Статистика */}
+                           {/*  Статистика
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="text-center p-4 bg-white/5 rounded-2xl">
                                     <div className="text-2xl font-bold text-purple-400">
@@ -347,7 +347,7 @@ const Profile = () => {
                                     </div>ы
                                     <div className="text-xs text-gray-400">Заданий</div>
                                 </div>
-                            </div>
+                            </div>*/}
                         </div>
                     </div>
                 </motion.div>
