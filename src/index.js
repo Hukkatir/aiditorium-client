@@ -3,14 +3,26 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-import { BrowserRouter } from 'react-router-dom';
+import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';/*
+import { BrowserRouter } from 'react-router-dom';*/
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
+/*root.render(
   <React.StrictMode>
-      <BrowserRouter>  {/* BrowserRouter оборачивает App */}
-          <App />
-      </BrowserRouter>
+
+      <App />
+
   </React.StrictMode>
+);*/
+
+
+
+root.render(
+    <AuthProvider>
+        <ToastProvider>
+            <App />
+        </ToastProvider>
+    </AuthProvider>
 );
 
 // If you want to start measuring performance in your app, pass a function

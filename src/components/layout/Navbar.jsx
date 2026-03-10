@@ -93,3 +93,50 @@ const Navbar = () => {
 
 
 export default Navbar;*/
+
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { HiAcademicCap, HiMiniUserCircle } from 'react-icons/hi2';
+
+const Navbar = () => {
+    const { isAuthenticated, user, logout } = useAuth();
+
+    return (
+        <nav className="fixed top-0 left-0 right-0 z-50 bg-dark/80 backdrop-blur-lg border-b border-white/10">
+            <div className="container-custom py-4">
+                <div className="flex items-center justify-between">
+                    <Link to="/" className="flex items-center gap-2 group">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300">
+                            <HiAcademicCap className="w-6 h-6 text-white" />
+                        </div>
+                        <span className="text-2xl font-bold text-white">AIditorium</span>
+                    </Link>
+
+                    <div className="flex items-center gap-4">
+                        {isAuthenticated ? (
+                            <>
+                                <span className="text-white hidden md:block">Привет, {user?.name}</span>
+                                <Link to="/profile" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
+                                    <HiMiniUserCircle className="w-6 h-6 text-white" />
+                                </Link>
+                                <button
+                                    onClick={logout}
+                                    className="text-white/80 hover:text-white text-sm font-medium"
+                                >
+                                    Выйти
+                                </button>
+                            </>
+                        ) : (
+                            <Link to="/auth" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
+                                <HiMiniUserCircle className="w-6 h-6 text-white" />
+                            </Link>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </nav>
+    );
+};
+
+export default Navbar;
