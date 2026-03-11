@@ -1,10 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext'; // импортируем хук
+import { useAuth } from './context/AuthContext';
 import Landing from './pages/Landing';
 import Auth from "./pages/Auth";
 import Profile from './pages/Profile';
+import Courses from './pages/Courses';
+import CourseDetailPage from './pages/CourseDetailPage';
+import DisciplineDetailPage from './pages/DisciplineDetailPage';
 
-// Защищённый маршрут
+// Защищённый маршрут (без Layout – Layout уже внутри страниц)
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
     if (!isAuthenticated) {
@@ -13,11 +16,11 @@ const ProtectedRoute = ({ children }) => {
     return children;
 };
 
-// Публичный маршрут (для неавторизованных)
+// Публичный маршрут (без Layout)
 const PublicRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
     if (isAuthenticated) {
-        return <Navigate to="/profile" replace />;
+        return <Navigate to="/courses" replace />;
     }
     return children;
 };
@@ -32,12 +35,30 @@ function App() {
                         <Auth />
                     </PublicRoute>
                 } />
+
+                {/* Защищённые страницы – они сами оборачивают себя в MainLayout */}
                 <Route path="/profile" element={
                     <ProtectedRoute>
                         <Profile />
                     </ProtectedRoute>
                 } />
-                <Route path="*" element={<Navigate to="/auth" replace />} />
+                <Route path="/courses" element={
+                    <ProtectedRoute>
+                        <Courses />
+                    </ProtectedRoute>
+                } />
+                <Route path="/courses/:courseId" element={
+                    <ProtectedRoute>
+                        <CourseDetailPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/disciplines/:disciplineId" element={
+                    <ProtectedRoute>
+                        <DisciplineDetailPage />
+                    </ProtectedRoute>
+                } />
+
+                <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </BrowserRouter>
     );

@@ -1,141 +1,179 @@
-/*
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { HiAcademicCap } from 'react-icons/hi2';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    HiAcademicCap,
+    HiUserCircle,
+    HiPlus,
+    HiUserPlus,
+    HiArrowRightOnRectangle,
+    HiPencilSquare,
+    HiBars3,
+    HiXMark
+} from 'react-icons/hi2';
+import { useAuth } from '../../context/AuthContext';
+import CreateCourseModal from '../courses/CreateCourseModal';
+import JoinCourseModal from '../courses/JoinCourseModal';
 
+const Navbar = ({ sidebarOpen, onToggleSidebar }) => {
+    const { user, isAuthenticated, logout } = useAuth();
+    const navigate = useNavigate();
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showJoinModal, setShowJoinModal] = useState(false);
+    const dropdownRef = useRef(null);
 
-const Navbar = () => {
-    const location = useLocation();
-    const { isAuthenticated, user, logout } = useAuthStore();
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
-    /!*!// Не показываем навбар на страницах авторизации?
-    const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
-*!/
-    // if (isAuthPage) return null; // Раскомментировать если не нужен навбар на auth страницах
+    const handleLogout = async () => {
+        await logout();
+        navigate('/auth');
+    };
+
+    const handleCreateSuccess = () => {
+        setShowCreateModal(false);
+        window.location.reload(); // или обновить список курсов через контекст
+    };
+
+    const handleJoinSuccess = () => {
+        setShowJoinModal(false);
+        window.location.reload();
+    };
 
     return (
-        <nav className="fixed top-0 left-0 right-0 z-50 bg-dark/80 backdrop-blur-lg border-b border-white/10">
-            <div className="container-custom py-4">
-                <div className="flex items-center justify-between">
-                    {/!* Логотип *!/}
-                    <Link to="/" className="flex items-center gap-2 group">
-                        <motion.div
-                            whileHover={{ rotate: 12 }}
-                            className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center"
-                        >
-                            <HiAcademicCap className="w-6 h-6 text-white" />
-                        </motion.div>
-                        <span className="text-2xl font-bold text-white">
-              AIditorium
-            </span>
-                    </Link>
-
-                    {/!* Кнопки входа/регистрации или профиль *!/}
+        <>
+            <nav className="sticky top-0 z-50 border-b border-white/10 bg-black/20 backdrop-blur-lg">
+                <div className="container mx-auto px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        {isAuthenticated ? (
-                            <>
-                                <Link to="/dashboard">
-                                    <Button variant="outline" size="sm">
-                                        Личный кабинет
-                                    </Button>
-                                </Link>
-                                <Button variant="primary" size="sm" onClick={logout}>
-                                    Выйти
-                                </Button>
-                            </>
-                        ) : (
-                            <>
-                                <Link to="/login">
-                                    <Button variant="outline" size="sm">
-                                        Вход
-                                    </Button>
-                                </Link>
-                                <Link to="/register">
-                                    <Button variant="primary" size="sm">
-                                        Регистрация
-                                    </Button>
-                                </Link>
-                            </>
+                        {/* Кнопка бургер для открытия/закрытия сайдбара */}
+                        {isAuthenticated && (
+                            <button
+                                onClick={onToggleSidebar}
+                                className="p-2 text-gray-400 hover:text-white transition-colors"
+                            >
+                                {sidebarOpen ? (
+                                    <HiXMark className="w-5 h-5" />
+                                ) : (
+                                    <HiBars3 className="w-5 h-5" />
+                                )}
+                            </button>
                         )}
-                    </div>
-                </div>
-            </div>
-            {/!* Навигация *!/}
-            <nav className="fixed top-0 left-0 right-0 z-50 bg-dark/80 backdrop-blur-lg border-b border-white/10">
-                <div className="container-custom py-4">
-                    <div className="flex items-center justify-between">
-                        {/!* Логотип *!/}
-                        <Link to="/" className="flex items-center gap-2 group">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300">
-                                <HiAcademicCap className="w-6 h-6 text-white" />
-                            </div>
-                            <span className="text-2xl font-bold text-white">
-                                AIditorium
-                            </span>
-                        </Link>
 
-                        {/!* Кнопки *!/}
-                        <div className="flex items-center gap-4">
-                            <Link to="/login" className="px-4 py-2 border border-white/20 rounded-lg text-white hover:bg-white/10 transition">
-                                Вход
-                            </Link>
-                            <Link to="/register" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
-                                Регистрация
-                            </Link>
-                        </div>
+                        {/* Логотип */}
+                        <Link to={isAuthenticated ? "/courses" : "/"} className="flex items-center gap-2 group">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                                <HiAcademicCap className="w-5 h-5 text-white" />
+                            </div>
+                            <span className="text-xl font-bold text-white">AIditorium</span>
+                        </Link>
                     </div>
+
+                    {/* Кнопки для авторизованных */}
+                    {isAuthenticated && (
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setShowCreateModal(true)}
+                                className="p-2 text-gray-400 hover:text-white transition-colors"
+                                title="Создать курс"
+                            >
+                                <HiPlus className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={() => setShowJoinModal(true)}
+                                className="p-2 text-gray-400 hover:text-white transition-colors"
+                                title="Присоединиться к курсу"
+                            >
+                                <HiUserPlus className="w-5 h-5" />
+                            </button>
+
+                            {/* Выпадающее меню профиля */}
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                                    className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 transition"
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                                        {user?.avatar_url ? (
+                                            <img src={user.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                                        ) : (
+                                            <span className="text-sm font-bold text-white">
+                                                {user?.name?.charAt(0) || 'U'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="hidden md:block text-sm text-white">{user?.name}</span>
+                                </button>
+
+                                <AnimatePresence>
+                                    {dropdownOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            className="absolute right-0 mt-2 w-64 bg-[#1A1A1C] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+                                        >
+                                            <div className="p-4 border-b border-white/10">
+                                                <p className="font-semibold text-white">{user?.name}</p>
+                                                <p className="text-sm text-gray-400 truncate">{user?.email}</p>
+                                            </div>
+                                            <div className="p-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setDropdownOpen(false);
+                                                        navigate('/profile');
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-white/5 rounded-lg transition"
+                                                >
+                                                    <HiPencilSquare className="w-4 h-4" />
+                                                    <span>Редактировать профиль</span>
+                                                </button>
+                                                <button
+                                                    onClick={handleLogout}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:bg-white/5 rounded-lg transition"
+                                                >
+                                                    <HiArrowRightOnRectangle className="w-4 h-4" />
+                                                    <span>Выйти</span>
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Если не авторизован – показываем кнопку входа */}
+                    {!isAuthenticated && (
+                        <Link
+                            to="/auth"
+                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg text-white font-medium hover:shadow-lg transition"
+                        >
+                            Войти
+                        </Link>
+                    )}
                 </div>
             </nav>
-        </nav>
-    );
-};
 
-
-export default Navbar;*/
-
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { HiAcademicCap, HiMiniUserCircle } from 'react-icons/hi2';
-
-const Navbar = () => {
-    const { isAuthenticated, user, logout } = useAuth();
-
-    return (
-        <nav className="fixed top-0 left-0 right-0 z-50 bg-dark/80 backdrop-blur-lg border-b border-white/10">
-            <div className="container-custom py-4">
-                <div className="flex items-center justify-between">
-                    <Link to="/" className="flex items-center gap-2 group">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300">
-                            <HiAcademicCap className="w-6 h-6 text-white" />
-                        </div>
-                        <span className="text-2xl font-bold text-white">AIditorium</span>
-                    </Link>
-
-                    <div className="flex items-center gap-4">
-                        {isAuthenticated ? (
-                            <>
-                                <span className="text-white hidden md:block">Привет, {user?.name}</span>
-                                <Link to="/profile" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
-                                    <HiMiniUserCircle className="w-6 h-6 text-white" />
-                                </Link>
-                                <button
-                                    onClick={logout}
-                                    className="text-white/80 hover:text-white text-sm font-medium"
-                                >
-                                    Выйти
-                                </button>
-                            </>
-                        ) : (
-                            <Link to="/auth" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
-                                <HiMiniUserCircle className="w-6 h-6 text-white" />
-                            </Link>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </nav>
+            {/* Модалки */}
+            <CreateCourseModal
+                isOpen={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                onSuccess={handleCreateSuccess}
+            />
+            <JoinCourseModal
+                isOpen={showJoinModal}
+                onClose={() => setShowJoinModal(false)}
+                onSuccess={handleJoinSuccess}
+            />
+        </>
     );
 };
 
