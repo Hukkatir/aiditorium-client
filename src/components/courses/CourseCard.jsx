@@ -5,6 +5,7 @@ import apiClient from '../../services/apiClient';
 const CourseCard = ({ course, onClick }) => {
     const [imageUrl, setImageUrl] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [users, setUsers] = useState([]);
 
     useEffect(() => {
         if (course.background_logo_url) {
@@ -60,8 +61,9 @@ const CourseCard = ({ course, onClick }) => {
                 <h3 className="text-xl font-bold text-white mb-2 line-clamp-1">{course.name}</h3>
                 <p className="text-gray-400 text-sm mb-4 line-clamp-2">{course.description}</p>
                 <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>{course.disciplines_count || 0} дисциплин</span>
-                  {/*  <span>{course.users_count || 0} участников</span>*/}
+                    <span>{course.disciplines_count || 0} дисциплин</span>{/*
+                    <span> {users.length} участников</span>
+                    <span className="text-gray-300">{users.length} участников</span>*/}
                 </div>
             </div>
         </motion.div>

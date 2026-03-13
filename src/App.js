@@ -6,7 +6,7 @@ import Profile from './pages/Profile';
 import Courses from './pages/Courses';
 import CourseDetailPage from './pages/CourseDetailPage';
 import DisciplineDetailPage from './pages/DisciplineDetailPage';
-
+import TaskDetailPage from './pages/TaskDetailPage';
 // Защищённый маршрут (без Layout – Layout уже внутри страниц)
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
@@ -55,6 +55,11 @@ function App() {
                 <Route path="/disciplines/:disciplineId" element={
                     <ProtectedRoute>
                         <DisciplineDetailPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/tasks/:taskId" element={
+                    <ProtectedRoute>
+                        <TaskDetailPage />
                     </ProtectedRoute>
                 } />
 

@@ -1,11 +1,13 @@
 import apiClient from './apiClient';
 
 export const disciplineService = {
-    // Получить дисциплины по курсу (POST с course_id)
+    // Получить дисциплины по курсу (GET с query-параметрами)
     async getDisciplinesByCourse(courseId) {
-        const response = await apiClient.post('/discipline/viewDisciplines', {
-            course_id: parseInt(courseId),
-            per_page: 100
+        const response = await apiClient.get('/discipline/viewDisciplines', {
+            params: {
+                course_id: parseInt(courseId),
+                per_page: 100  // или можно передавать извне
+            }
         });
         return response.data; // возвращает пагинатор: { data: [...], ... }
     },
