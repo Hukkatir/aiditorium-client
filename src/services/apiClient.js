@@ -18,17 +18,14 @@ apiClient.interceptors.request.use((config) => {
     return config;
 });
 
-// Интерсептор для обработки ошибок (например, 401)
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Токен протух — разлогиниваем
+            // Токен недействителен, чистим хранилище
             localStorage.removeItem('authToken');
             localStorage.removeItem('user');
-            // Можно перенаправить на страницу логина, но лучше сделать это через контекст
-            window.location.href = '/auth';
-        }
+              }
         return Promise.reject(error);
     }
 );

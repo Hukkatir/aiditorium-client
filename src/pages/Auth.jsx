@@ -9,12 +9,12 @@ import {
     HiArrowRight
 } from 'react-icons/hi2';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext'; // если используем тосты
+import { useToast } from '../context/ToastContext';
 
 const Auth = () => {
     const navigate = useNavigate();
     const { login, register, isAuthenticated } = useAuth();
-    const { showToast } = useToast(); // если есть ToastContext
+    const { showToast } = useToast();
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
         name: '',
@@ -22,14 +22,9 @@ const Auth = () => {
         password: '',
     });
     const [isLoading, setIsLoading] = useState(false);
-
-    // Состояния для ошибок валидации (поле → сообщение)
     const [fieldErrors, setFieldErrors] = useState({});
-
-    // Общая ошибка (если не привязана к полю)
     const [generalError, setGeneralError] = useState('');
 
-    // Редирект, если уже авторизован
     useEffect(() => {
         if (isAuthenticated) {
             navigate('/profile');
@@ -39,11 +34,7 @@ const Auth = () => {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        // Очищаем ошибку поля при вводе
-        if (fieldErrors[name]) {
-            setFieldErrors(prev => ({ ...prev, [name]: '' }));
-        }
-        // Очищаем общую ошибку
+        if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: '' }));
         if (generalError) setGeneralError('');
     };
 
@@ -54,7 +45,6 @@ const Auth = () => {
         setGeneralError('');
     };
 
-    // Клиентская валидация перед отправкой
     const validateForm = () => {
         const errors = {};
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,7 +52,7 @@ const Auth = () => {
         if (!formData.email.trim()) {
             errors.email = 'Email обязателен';
         } else if (!emailRegex.test(formData.email)) {
-            errors.email = 'Введите корректный email (например, name@domain.com)';
+            errors.email = 'Введите корректный email';
         }
 
         if (!formData.password) {
@@ -78,46 +68,28 @@ const Auth = () => {
         return errors;
     };
 
-    // Маппинг английских сообщений с сервера на русские (можно расширить)
     const translateServerError = (field, message) => {
         const lowerMsg = message.toLowerCase();
 
-        if (lowerMsg.includes('already been taken') ||
-            lowerMsg.includes('already used') ||
-            lowerMsg.includes('already exists')) {
-
-            if (field === 'email') {
-                return 'Эта почта уже зарегистрирована';
-            }
-            // Если вдруг для другого поля (например, name) будет такое сообщение
-            return 'Такое значение уже используется';
+        if (lowerMsg.includes('already been taken') || lowerMsg.includes('already used')) {
+            return field === 'email' ? 'Эта почта уже зарегистрирована' : 'Такое значение уже используется';
         }
-
-        if (lowerMsg.includes('required') || lowerMsg.includes('обязательно')) {
-            return 'Поле обязательно для заполнения';
-        }
-        if (lowerMsg.includes('email') && lowerMsg.includes('valid')) {
-            return 'Введите корректную почту';
-        }
+        if (lowerMsg.includes('required')) return 'Поле обязательно для заполнения';
+        if (lowerMsg.includes('email') && lowerMsg.includes('valid')) return 'Введите корректную почту';
         if (lowerMsg.includes('password') && lowerMsg.includes('least 8 characters')) {
             return 'Пароль должен быть не менее 8 символов';
-        }
-        if (lowerMsg.includes('already taken') || lowerMsg.includes('уже используется')) {
-            return 'Эта почта уже зарегистрирована';
         }
         if (lowerMsg.includes('credentials') || lowerMsg.includes('неверные данные')) {
             return 'Неверная почта или пароль';
         }
-        // Если не нашли соответствия, возвращаем исходное сообщение (или можно заменить на общее)
         return message;
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault(); // отключаем стандартную отправку
+        e.preventDefault();
         setFieldErrors({});
         setGeneralError('');
 
-        // Клиентская валидация
         const clientErrors = validateForm();
         if (Object.keys(clientErrors).length > 0) {
             setFieldErrors(clientErrors);
@@ -132,27 +104,22 @@ const Auth = () => {
             } else {
                 await register({ name: formData.name, email: formData.email, password: formData.password });
             }
-            // Редирект произойдёт через useEffect
+            // Редирект в useEffect
         } catch (err) {
             console.error('Auth error:', err);
 
-            // Обработка ошибок от сервера
             if (err.response?.status === 422 && err.response.data?.errors) {
-                // Ошибки валидации (поля)
                 const serverErrors = {};
                 Object.entries(err.response.data.errors).forEach(([field, messages]) => {
-                    // Берём первое сообщение и переводим
                     serverErrors[field] = translateServerError(field, messages[0]);
                 });
                 setFieldErrors(serverErrors);
             } else if (err.response?.data?.message) {
-                // Общая ошибка (например, 401)
                 const translated = translateServerError('general', err.response.data.message);
                 setGeneralError(translated);
-                // Или показать через toast:
+                // Если хотите показывать тост:
                 // showToast('error', translated);
             } else {
-                // Сетевая ошибка или что-то ещё
                 setGeneralError('Ошибка подключения к серверу. Попробуйте позже.');
             }
         } finally {
@@ -162,7 +129,7 @@ const Auth = () => {
 
     return (
         <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-[#0A0A0B]">
-            {/* Фон (без изменений) */}
+            {/* Фон */}
             <div className="fixed inset-0 z-0">
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#7c3aed10_0%,transparent_50%)]" />
@@ -177,22 +144,18 @@ const Auth = () => {
                 {/* Логотип */}
                 <div className="text-center mb-8">
                     <Link to="/" className="inline-flex items-center gap-2 group">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300 shadow-xl shadow-purple-500/20">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center transform group-hover:rotate-12 transition-shadow shadow-xl shadow-purple-500/20">
                             <HiAcademicCap className="w-7 h-7 text-white" />
                         </div>
                         <span className="text-3xl font-bold text-white tracking-tight">AIditorium</span>
                     </Link>
                 </div>
 
-                {/* Форма */}
                 <div className="bg-white/[0.02] backdrop-blur-3xl rounded-[32px] p-8 md:p-10 border border-white/10 shadow-2xl shadow-black/50">
-                    <div className="mb-8">
-                        <h2 className="text-3xl font-bold text-white mb-2 tracking-tight text-center">
-                            {isLogin ? 'Вход в систему' : 'Регистрация'}
-                        </h2>
-                    </div>
+                    <h2 className="text-3xl font-bold text-white mb-8 tracking-tight text-center">
+                        {isLogin ? 'Вход в систему' : 'Регистрация'}
+                    </h2>
 
-                    {/* Общая ошибка (если есть) */}
                     <AnimatePresence>
                         {generalError && (
                             <motion.div
@@ -207,7 +170,6 @@ const Auth = () => {
                     </AnimatePresence>
 
                     <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                        {/* Поле Имя (только для регистрации) */}
                         <AnimatePresence mode="wait">
                             {!isLogin && (
                                 <motion.div
@@ -220,7 +182,7 @@ const Auth = () => {
                                         Имя
                                     </label>
                                     <div className="relative">
-                                        <HiUser className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
+                                        <HiUser className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                                         <input
                                             type="text"
                                             name="name"
@@ -248,13 +210,12 @@ const Auth = () => {
                             )}
                         </AnimatePresence>
 
-                        {/* Email */}
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 ml-1">
                                 Email
                             </label>
                             <div className="relative">
-                                <HiEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
+                                <HiEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                                 <input
                                     type="email"
                                     name="email"
@@ -280,23 +241,19 @@ const Auth = () => {
                             )}
                         </div>
 
-                        {/* Пароль */}
                         <div>
                             <div className="flex justify-between mb-2 ml-1">
                                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                     Пароль
                                 </label>
-                              {/*  {isLogin && (
-                                    <button
-                                        type="button"
-                                        className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                                    >
+                                {/* {isLogin && (
+                                    <button type="button" className="text-xs text-purple-400 hover:text-purple-300">
                                         Забыли?
                                     </button>
-                                )}*/}
+                                )} */}
                             </div>
                             <div className="relative">
-                                <HiLockClosed className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
+                                <HiLockClosed className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                                 <input
                                     type="password"
                                     name="password"
@@ -322,7 +279,6 @@ const Auth = () => {
                             )}
                         </div>
 
-                        {/* Кнопка отправки */}
                         <button
                             type="submit"
                             disabled={isLoading}
@@ -339,7 +295,6 @@ const Auth = () => {
                         </button>
                     </form>
 
-                    {/* Переключение режима */}
                     <div className="mt-8 text-center border-t border-white/5 pt-6">
                         <p className="text-gray-400 text-sm">
                             {isLogin ? 'Новый пользователь?' : 'Уже зарегистрированы?'}

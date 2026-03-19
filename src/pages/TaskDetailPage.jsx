@@ -5,12 +5,34 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { taskService } from '../services/taskService';
-import { courseService } from '../services/courseService'; // для проверки прав
+import { courseService } from '../services/courseService';
+import { userService } from '../services/userService';
 import MainLayout from '../components/layout/MainLayout';
 import EditTaskModal from '../components/tasks/EditTaskModal';
 import ConfirmModal from '../components/layout/ConfirmModal';
-import { HiCalendar, HiClock, HiStar, HiPaperClip, HiPencil, HiTrash } from 'react-icons/hi2';
-import apiClient from '../services/apiClient'; // для отправки файла
+import {
+    HiArrowLeft,
+    HiStar,
+    HiCalendar,
+    HiClock,
+    HiPaperClip,
+    HiPencil,
+    HiTrash,
+    HiUserCircle
+} from 'react-icons/hi2';
+import apiClient from '../services/apiClient';
+
+const formatDateTime = (dateString) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    return date.toLocaleString('ru-RU', {
+        day: 'numeric',
+        month: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
 
 const TaskDetailPage = () => {
     const { taskId } = useParams();
@@ -19,13 +41,14 @@ const TaskDetailPage = () => {
     const { showToast } = useToast();
 
     const [task, setTask] = useState(null);
+    const [creator, setCreator] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [showSubmitModal, setShowSubmitModal] = useState(false); // для студента
+    const [showSubmitModal, setShowSubmitModal] = useState(false);
     const [submitFile, setSubmitFile] = useState(null);
     const [submitting, setSubmitting] = useState(false);
-    const [course, setCourse] = useState(null); // для проверки прав
+    const [course, setCourse] = useState(null);
 
     const fetchTask = async () => {
         try {
@@ -33,10 +56,20 @@ const TaskDetailPage = () => {
             const taskObj = data.task || data;
             setTask(taskObj);
 
-            // Загружаем курс, чтобы узнать роль текущего пользователя
             if (taskObj.course_id) {
                 const courseData = await courseService.getCourse(taskObj.course_id);
                 setCourse(courseData.course || courseData);
+            }
+
+            if (taskObj.user_id && taskObj.user_id !== user?.id) {
+                try {
+                    const userData = await userService.getUser(taskObj.user_id);
+                    setCreator(userData.user || userData);
+                } catch (err) {
+                    console.error('Не удалось загрузить создателя', err);
+                }
+            } else if (taskObj.user_id === user?.id) {
+                setCreator(user);
             }
         } catch (error) {
             console.error(error);
@@ -50,7 +83,6 @@ const TaskDetailPage = () => {
         fetchTask();
     }, [taskId]);
 
-    // Проверка прав на редактирование/удаление (создатель курса или учитель)
     const canManage = course && user && (
         course.creator_id === user.id || course.pivot?.role === 'teacher'
     );
@@ -59,7 +91,7 @@ const TaskDetailPage = () => {
         try {
             await taskService.deleteTask(taskId);
             showToast('success', 'Задание удалено');
-            navigate(-1); // назад
+            navigate(-1);
         } catch (error) {
             showToast('error', error.response?.data?.message || 'Ошибка удаления');
         } finally {
@@ -76,7 +108,6 @@ const TaskDetailPage = () => {
         try {
             const form = new FormData();
             form.append('attachment', submitFile);
-            // Предполагаем эндпоинт POST /api/task/{id}/submit
             await apiClient.post(`/task/${taskId}/submit`, form, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
@@ -107,9 +138,9 @@ const TaskDetailPage = () => {
                     <p className="text-gray-400 text-xl">Задание не найдено</p>
                     <button
                         onClick={() => navigate(-1)}
-                        className="mt-4 text-purple-400 hover:text-purple-300"
+                        className="mt-4 text-purple-400 hover:text-purple-300 flex items-center gap-1 mx-auto"
                     >
-                        ← Назад
+                        <HiArrowLeft className="w-5 h-5" /> Назад
                     </button>
                 </div>
             </MainLayout>
@@ -118,113 +149,117 @@ const TaskDetailPage = () => {
 
     return (
         <MainLayout>
-            <div className="max-w-4xl mx-auto">
-                {/* Кнопка назад */}
-                <button
-                    onClick={() => navigate(-1)}
-                    className="mb-4 text-purple-400 hover:text-purple-300 flex items-center gap-1"
-                >
-                    ← Назад
-                </button>
-
-                {/* Заголовок и действия */}
-                <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-3xl font-bold">{task.name}</h1>
+            <div className="max-w-6xl mx-auto">
+                {/* Верхняя строка: назад, заголовок, кнопки */}
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => navigate(-1)} className="text-purple-400 hover:text-purple-300">
+                            <HiArrowLeft className="w-6 h-6" />
+                        </button>
+                        <h1 className="text-3xl font-bold">{task.name}</h1>
+                    </div>
                     {canManage && (
                         <div className="flex gap-2">
-                            <button
-                                onClick={() => setShowEditModal(true)}
-                                className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition"
-                                title="Редактировать"
-                            >
+                            <button onClick={() => setShowEditModal(true)} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition" title="Редактировать">
                                 <HiPencil className="w-5 h-5" />
                             </button>
-                            <button
-                                onClick={() => setShowDeleteConfirm(true)}
-                                className="p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition"
-                                title="Удалить"
-                            >
+                            <button onClick={() => setShowDeleteConfirm(true)} className="p-2 bg-red-600/20 hover:bg-red-600/30 rounded-lg transition" title="Удалить">
                                 <HiTrash className="w-5 h-5 text-red-400" />
                             </button>
                         </div>
                     )}
                 </div>
 
-                {/* Описание */}
-                {task.description && (
-                    <div className="mb-6 p-4 bg-white/[0.02] border border-white/10 rounded-xl">
-                        <p className="text-gray-300 whitespace-pre-wrap">{task.description}</p>
+                {/* Двухколоночный макет */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Левая колонка: описание и кнопка отправки */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {task.description && (
+                            <div className="bg-white/[0.02] border border-white/10 rounded-xl p-5">
+                                <p className="text-gray-300 whitespace-pre-wrap">{task.description}</p>
+                            </div>
+                        )}
+                        {!canManage && (
+                            <button onClick={() => setShowSubmitModal(true)} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-medium transition w-full sm:w-auto">
+                                Отправить работу
+                            </button>
+                        )}
                     </div>
-                )}
 
-                {/* Информация о задании */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
-                        <div className="text-sm text-gray-400 mb-1">Баллы</div>
-                        <div className="flex items-center gap-1 text-xl font-semibold">
-                            <HiStar className="w-5 h-5 text-yellow-400" />
-                            {task.scores ?? 0}
-                        </div>
-                    </div>
-                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
-                        <div className="text-sm text-gray-400 mb-1">Дедлайн</div>
-                        <div className="flex items-center gap-1 text-lg">
-                            <HiCalendar className="w-5 h-5" />
-                            {task.deadline ? new Date(task.deadline).toLocaleDateString() : '—'}
-                        </div>
-                    </div>
-                    <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
-                        <div className="text-sm text-gray-400 mb-1">Создано</div>
-                        <div className="flex items-center gap-1 text-lg">
-                            <HiClock className="w-5 h-5" />
-                            {task.created_at ? new Date(task.created_at).toLocaleDateString() : '—'}
+                    {/* Правая колонка: детали + кнопки управления */}
+                    <div className="space-y-4 lg:mt-0">
+                        <div className="bg-white/[0.02] backdrop-blur border border-white/10 rounded-xl p-5">
+                            {/* Создано */}
+                            <div className="border-b border-white/10">
+                                <div className="text-gray-400 mb-2">Создано:</div>
+                                <div className="mb-3 flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center overflow-hidden">
+                                        {creator?.avatar_url ? (
+                                            <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <HiUserCircle className="w-6 h-6 text-white" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="font-medium">{creator?.name || 'Неизвестно'}</p>
+                                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                                            <HiClock className="w-3 h-3" />
+                                            {formatDateTime(task.created_at)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Баллы */}
+                            <div className="flex items-center justify-between py-3 border-b border-white/10">
+                                <span className="text-gray-400">Баллы</span>
+                                <span className="flex items-center gap-1 font-semibold">
+                                    <HiStar className="w-4 h-4 text-yellow-400" />
+                                    {task.scores ?? 0}
+                                </span>
+                            </div>
+
+                            {/* Срок сдачи */}
+                            <div className="flex items-center justify-between py-3 border-b border-white/10">
+                                <span className="text-gray-400">Срок сдачи</span>
+                                <span className="flex items-center gap-1 text-right">
+                                    <HiCalendar className="w-4 h-4 text-gray-500" />
+                                    {task.deadline ? formatDateTime(task.deadline) : '—'}
+                                </span>
+                            </div>
+
+                            {/* Прикреплённый файл */}
+                            {task.attachment_id && (
+                                <div className="py-3">
+                                    <div className="text-gray-400 mb-2">Прикреплённый файл</div>
+                                    <a
+                                        href={`https://aiditorium.ru/api/file/${task.attachment_id}/download`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 text-purple-400 hover:text-purple-300 break-all"
+                                    >
+                                        <HiPaperClip className="w-4 h-4 flex-shrink-0" />
+                                        <span className="text-sm">Скачать вложение</span>
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
-
-                {/* Вложение (если есть) */}
-                {task.attachment_id && (
-                    <div className="mb-6 p-4 bg-white/[0.02] border border-white/10 rounded-xl">
-                        <div className="text-sm text-gray-400 mb-2">Прикреплённый файл</div>
-                        <a
-                            href={`https://aiditorium.ru/api/file/${task.attachment_id}/download`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-purple-400 hover:text-purple-300"
-                        >
-                            <HiPaperClip className="w-5 h-5" />
-                            Скачать вложение
-                        </a>
-                    </div>
-                )}
-
-                {/* Для студента – кнопка отправки работы */}
-                {!canManage && (
-                    <div className="mt-8">
-                        <button
-                            onClick={() => setShowSubmitModal(true)}
-                            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-medium transition"
-                        >
-                            Отправить работу
-                        </button>
-                    </div>
-                )}
             </div>
 
-            {/* Модалка редактирования */}
+            {/* Модалки */}
             {task && (
                 <EditTaskModal
                     isOpen={showEditModal}
                     onClose={() => setShowEditModal(false)}
                     onSuccess={() => {
                         setShowEditModal(false);
-                        fetchTask(); // обновить задание
+                        fetchTask();
                     }}
                     task={task}
                 />
             )}
-
-            {/* Модалка подтверждения удаления */}
             <ConfirmModal
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
@@ -234,7 +269,7 @@ const TaskDetailPage = () => {
                 confirmText="Удалить"
             />
 
-            {/* Модалка отправки работы (для студента) */}
+            {/* Модалка отправки работы */}
             {showSubmitModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSubmitModal(false)}>
                     <div className="bg-[#1A1A1C] rounded-2xl max-w-md w-full p-6 border border-white/10" onClick={e => e.stopPropagation()}>
