@@ -60,9 +60,9 @@ const Sidebar = ({ isOpen }) => {
                                 {courses.map(course => (
                                     <li key={course.id}>
                                         <Link
-                                            to={`/courses/${course.slug}`} // используем slug
+                                            to={`/courses/${course.id}`}
                                             className={`block px-3 py-2 rounded-lg text-sm transition ${
-                                                location.pathname === `/courses/${course.slug}`
+                                                location.pathname === `/courses/${course.id}`
                                                     ? 'bg-purple-600/20 text-purple-400 border-l-2 border-purple-400'
                                                     : 'text-gray-300 hover:bg-white/5'
                                             }`}

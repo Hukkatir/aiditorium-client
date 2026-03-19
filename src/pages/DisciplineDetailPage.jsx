@@ -9,14 +9,8 @@ import MainLayout from '../components/layout/MainLayout';
 import CreateTaskModal from '../components/tasks/CreateTaskModal';
 import { HiClock, HiCalendar, HiStar } from 'react-icons/hi2';
 
-const formatDate = (dateString) => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-};
-
 const DisciplineDetailPage = () => {
-    const { courseSlug, disciplineSlug } = useParams();
+    const { disciplineId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
     const { showToast } = useToast();
@@ -26,20 +20,39 @@ const DisciplineDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [showCreateTask, setShowCreateTask] = useState(false);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchDiscipline = async () => {
         try {
-            // Получаем дисциплину по slug'ам
-            const discData = await disciplineService.getDisciplineBySlug(courseSlug, disciplineSlug);
-            const disciplineObj = discData.discipline || discData;
-            setDiscipline(disciplineObj);
-
-            // Загружаем задания по ID дисциплины
-            const tasksData = await taskService.getTasksByDiscipline(disciplineObj.id);
-            setTasks(tasksData.data || []);
+            const discData = await disciplineService.getDiscipline(disciplineId);
+            setDiscipline(discData.discipline || discData);
         } catch (error) {
             console.error(error);
             showToast('error', 'Не удалось загрузить данные дисциплины');
+            throw error;
+        }
+    };
+
+    const fetchTasks = async (courseId) => {
+        try {
+            // Получаем все задания курса
+            const tasksData = await taskService.getTasks({ course_id: courseId });
+            // Фильтруем по discipline_id
+            const filtered = tasksData.data.filter(task => task.discipline_id === parseInt(disciplineId));
+            setTasks(filtered);
+        } catch (error) {
+            console.error('Ошибка загрузки заданий', error);
+            setTasks([]);
+            showToast('error', 'Не удалось загрузить задания');
+        }
+    };
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            await fetchDiscipline();
+            // После загрузки дисциплины знаем course_id
+            if (discipline) {
+                await fetchTasks(discipline.course_id);
+            }
         } finally {
             setLoading(false);
         }
@@ -47,7 +60,14 @@ const DisciplineDetailPage = () => {
 
     useEffect(() => {
         fetchData();
-    }, [courseSlug, disciplineSlug]);
+    }, [disciplineId]);
+
+    // Повторный вызов при изменении discipline (после первой загрузки)
+    useEffect(() => {
+        if (discipline) {
+            fetchTasks(discipline.course_id);
+        }
+    }, [discipline]);
 
     const canManage = discipline && user && (
         discipline.created_by === user.id || discipline.pivot?.role === 'teacher'
@@ -139,9 +159,10 @@ const DisciplineDetailPage = () => {
                                     {task.deadline && (
                                         <span className="flex items-center gap-1">
                                             <HiCalendar className="w-3 h-3" />
-                                            Дедлайн: {formatDate(task.deadline)}
+                                            Срок здачи: {new Date(task.deadline).toLocaleDateString()}
                                         </span>
                                     )}
+
                                 </div>
                             </motion.div>
                         ))}
@@ -155,10 +176,13 @@ const DisciplineDetailPage = () => {
                 onClose={() => setShowCreateTask(false)}
                 onSuccess={() => {
                     setShowCreateTask(false);
-                    fetchData();
+                    // После создания задания обновляем список, используя course_id
+                    if (discipline) {
+                        fetchTasks(discipline.course_id);
+                    }
                 }}
-                courseId={discipline.course_id}
-                disciplineId={discipline.id}
+                courseId={discipline?.course_id}
+                disciplineId={disciplineId}
             />
         </MainLayout>
     );
