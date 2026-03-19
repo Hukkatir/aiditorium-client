@@ -59,7 +59,7 @@ const Courses = () => {
                         <CourseCard
                             key={course.id}
                             course={course}
-                            onClick={() => navigate(`/courses/${course.id}`)}
+                            onClick={() => navigate(`/courses/${course.slug}`)} // используем slug
                         />
                     ))}
                 </div>

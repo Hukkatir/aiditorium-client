@@ -1,3 +1,4 @@
+/*
 import apiClient from './apiClient';
 
 export const courseService = {
@@ -85,6 +86,92 @@ export const courseService = {
     // Полное удаление курса
     async deleteCourse(courseId) {
         const response = await apiClient.delete(`/course/${courseId}`);
+        return response.data;
+    }
+};*/
+
+import apiClient from './apiClient';
+
+export const courseService = {
+    // Получить курс по ID (оставим для совместимости)
+    async getCourse(id) {
+        const response = await apiClient.get(`/course/${id}`);
+        return response.data;
+    },
+
+    // Получить курс по slug
+    async getCourseBySlug(slug) {
+        const response = await apiClient.get(`/course/slug/${slug}`); // предполагаемый эндпоинт
+        return response.data;
+    },
+
+    // Мои курсы (для списка)
+    async getMyCourses() {
+        const response = await apiClient.get('/course/viewMine');
+        return response.data;
+    },
+
+    // Создать курс
+    async createCourse(formData) {
+        const response = await apiClient.post('/course', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
+    // Обновить курс (multipart/form-data)
+    async updateCourse(id, formData) {
+        const response = await apiClient.put(`/course/${id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
+    // Получить участников курса
+    async getCourseUsers(courseId) {
+        const response = await apiClient.get(`/course/${courseId}/getUsers`);
+        return response.data;
+    },
+
+    // Действия с кодом приглашения
+    async generateTeacherCode(courseId) {
+        const response = await apiClient.post(`/course/generateCode/${courseId}`);
+        return response.data;
+    },
+
+    async regenerateInviteCode(courseId) {
+        const response = await apiClient.patch(`/course/${courseId}/regenerateInviteCode`);
+        return response.data;
+    },
+
+    // Управление курсом
+    async closeCourse(courseId) {
+        const response = await apiClient.patch(`/course/${courseId}/close`);
+        return response.data;
+    },
+
+    async reopenCourse(courseId) {
+        const response = await apiClient.patch(`/course/${courseId}/reopen`);
+        return response.data;
+    },
+
+    async archiveCourse(courseId) {
+        const response = await apiClient.delete(`/course/archive/${courseId}`);
+        return response.data;
+    },
+
+    async restoreCourse(courseId) {
+        const response = await apiClient.post(`/course/restore/${courseId}`);
+        return response.data;
+    },
+
+    async deleteCourse(courseId) {
+        const response = await apiClient.delete(`/course/${courseId}`);
+        return response.data;
+    },
+
+    async removeUser(courseId, userId) {
+        const response = await apiClient.post(`/course/removeUser/${courseId}`, { user_id: userId });
         return response.data;
     }
 };

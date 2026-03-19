@@ -167,7 +167,7 @@ const TaskDetailPage = () => {
                         </div>
                     </div>
                     <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4">
-                        <div className="text-sm text-gray-400 mb-1">Дедлайн</div>
+                        <div className="text-sm text-gray-400 mb-1">Срок сдачи</div>
                         <div className="flex items-center gap-1 text-lg">
                             <HiCalendar className="w-5 h-5" />
                             {task.deadline ? new Date(task.deadline).toLocaleDateString() : '—'}
