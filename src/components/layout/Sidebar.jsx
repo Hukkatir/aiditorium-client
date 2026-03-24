@@ -4,6 +4,7 @@ import { courseService } from '../../services/courseService';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiAcademicCap } from 'react-icons/hi2';
+import { buildCoursePath } from '../../utils/routeUtils';
 
 const Sidebar = ({ isOpen }) => {
     const location = useLocation();
@@ -26,6 +27,7 @@ const Sidebar = ({ isOpen }) => {
                 setLoading(false);
             }
         };
+
         fetchCourses();
     }, [isAuthenticated]);
 
@@ -43,7 +45,7 @@ const Sidebar = ({ isOpen }) => {
                         <h2 className="text-lg font-bold text-white mb-4">
                             <Link to="/courses" className="flex items-center gap-2 hover:text-purple-400 transition">
                                 <HiAcademicCap className="w-5 h-5 text-purple-400" />
-                                Мои курсы
+                                РњРѕРё РєСѓСЂСЃС‹
                             </Link>
                         </h2>
 
@@ -53,24 +55,28 @@ const Sidebar = ({ isOpen }) => {
                             </div>
                         ) : courses.length === 0 ? (
                             <p className="text-gray-500 text-sm text-center py-4">
-                                У вас пока нет курсов
+                                РЈ РІР°СЃ РїРѕРєР° РЅРµС‚ РєСѓСЂСЃРѕРІ
                             </p>
                         ) : (
                             <ul className="space-y-1">
-                                {courses.map(course => (
-                                    <li key={course.id}>
-                                        <Link
-                                            to={`/courses/${course.id}`}
-                                            className={`block px-3 py-2 rounded-lg text-sm transition ${
-                                                location.pathname === `/courses/${course.id}`
-                                                    ? 'bg-purple-600/20 text-purple-400 border-l-2 border-purple-400'
-                                                    : 'text-gray-300 hover:bg-white/5'
-                                            }`}
-                                        >
-                                            {course.name}
-                                        </Link>
-                                    </li>
-                                ))}
+                                {courses.map(course => {
+                                    const coursePath = buildCoursePath(course);
+
+                                    return (
+                                        <li key={course.id}>
+                                            <Link
+                                                to={coursePath}
+                                                className={`block px-3 py-2 rounded-lg text-sm transition ${
+                                                    location.pathname === coursePath
+                                                        ? 'bg-purple-600/20 text-purple-400 border-l-2 border-purple-400'
+                                                        : 'text-gray-300 hover:bg-white/5'
+                                                }`}
+                                            >
+                                                {course.name}
+                                            </Link>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>

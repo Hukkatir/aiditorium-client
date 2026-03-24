@@ -2,8 +2,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { HiStar, HiClock, HiCalendar, HiRectangleStack } from 'react-icons/hi2';
 import { useNavigate } from 'react-router-dom';
+import { buildTaskPath } from '../../utils/routeUtils';
 
-const TaskCard = ({ task, disciplineName }) => {
+const TaskCard = ({ task, course, discipline, disciplineName }) => {
     const navigate = useNavigate();
 
     const formatDate = (dateString) => {
@@ -16,7 +17,7 @@ const TaskCard = ({ task, disciplineName }) => {
         <motion.div
             whileHover={{ y: -4 }}
             className="bg-white/[0.02] backdrop-blur border border-white/10 rounded-xl p-5 cursor-pointer hover:border-purple-500 transition-all"
-            onClick={() => navigate(`/tasks/${task.id}`)}
+            onClick={() => navigate(buildTaskPath(course, discipline, task))}
         >
             <h3 className="text-lg font-bold mb-2">{task.name}</h3>
             <p className="text-gray-400 text-sm line-clamp-2 mb-3">{task.description}</p>

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { courseService } from '../services/courseService';
 import CourseCard from '../components/courses/CourseCard';
 import MainLayout from '../components/layout/MainLayout';
+import { buildCoursePath } from '../utils/routeUtils';
 
 const Courses = () => {
     const navigate = useNavigate();
@@ -59,7 +60,7 @@ const Courses = () => {
                         <CourseCard
                             key={course.id}
                             course={course}
-                            onClick={() => navigate(`/courses/${course.id}`)}
+                            onClick={() => navigate(buildCoursePath(course))}
                         />
                     ))}
                 </div>

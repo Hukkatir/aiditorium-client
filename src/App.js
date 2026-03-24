@@ -52,12 +52,17 @@ function App() {
                         <CourseDetailPage />
                     </ProtectedRoute>
                 } />
-                <Route path="/disciplines/:disciplineId" element={
+                <Route path="/course/:courseIdOrSlug" element={
+                    <ProtectedRoute>
+                        <CourseDetailPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug" element={
                     <ProtectedRoute>
                         <DisciplineDetailPage />
                     </ProtectedRoute>
                 } />
-                <Route path="/tasks/:taskId" element={
+                <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber" element={
                     <ProtectedRoute>
                         <TaskDetailPage />
                     </ProtectedRoute>

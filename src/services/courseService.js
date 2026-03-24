@@ -22,8 +22,12 @@ export const courseService = {
     },
 
     // Получить информацию о курсе (если нужно)
-    async getCourse(courseId) {
-        const response = await apiClient.get(`/course/${courseId}`);
+    async getCourse(courseIdOrSlug) {
+        const identifier = String(courseIdOrSlug);
+        const endpoint = /^\d+$/.test(identifier)
+            ? `/course/${identifier}`
+            : `/course/slug/${identifier}`;
+        const response = await apiClient.get(endpoint);
         return response.data;
     },
     // Участники курса (предполагаем GET /course/{courseId}/users)

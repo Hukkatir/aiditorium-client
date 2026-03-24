@@ -19,8 +19,8 @@ export const disciplineService = {
     },
 
     // Получить одну дисциплину
-    async getDiscipline(disciplineId) {
-        const response = await apiClient.get(`/discipline/${disciplineId}`);
+    async getDiscipline(courseIdOrSlug, disciplineIdOrSlug) {
+        const response = await apiClient.get(`/course/${courseIdOrSlug}/discipline/${disciplineIdOrSlug}`);
         return response.data;
     }
 };

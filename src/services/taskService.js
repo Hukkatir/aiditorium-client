@@ -21,8 +21,8 @@ export const taskService = {
     },
 
     // Получить информацию о задании
-    async getTask(taskId) {
-        const response = await apiClient.get(`/task/${taskId}`);
+    async getTask(courseIdOrSlug, disciplineIdOrSlug, taskNumber) {
+        const response = await apiClient.get(`/course/${courseIdOrSlug}/discipline/${disciplineIdOrSlug}/task/${taskNumber}`);
         return response.data;
     },
 
