@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useNavigate, useParams } from 'react-router-dom';
+import { HiCalendar, HiClock, HiStar } from 'react-icons/hi2';
+import CreateTaskModal from '../components/tasks/CreateTaskModal';
+import MainLayout from '../components/layout/MainLayout';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
 import { taskService } from '../services/taskService';
-import MainLayout from '../components/layout/MainLayout';
-import CreateTaskModal from '../components/tasks/CreateTaskModal';
-import { HiCalendar, HiClock, HiStar } from 'react-icons/hi2';
-import { buildCoursePath, buildTaskPath } from '../utils/routeUtils';
+import { buildCoursePath, buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
 
 const DisciplineDetailPage = () => {
     const { courseIdOrSlug, disciplineIdOrSlug } = useParams();
@@ -17,9 +18,18 @@ const DisciplineDetailPage = () => {
     const { showToast } = useToast();
 
     const [discipline, setDiscipline] = useState(null);
+    const [course, setCourse] = useState(null);
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreateTask, setShowCreateTask] = useState(false);
+
+    const syncCanonicalDisciplineUrl = (courseObj, disciplineObj) => {
+        const courseRef = courseObj || { id: disciplineObj.course_id, slug: courseIdOrSlug };
+        const canonicalPath = buildDisciplinePath(courseRef, disciplineObj);
+        if (window.location.pathname !== canonicalPath) {
+            navigate(canonicalPath, { replace: true });
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -27,6 +37,10 @@ const DisciplineDetailPage = () => {
             const disciplineData = await disciplineService.getDiscipline(courseIdOrSlug, disciplineIdOrSlug);
             const disciplineObj = disciplineData.discipline || disciplineData;
             setDiscipline(disciplineObj);
+            const courseData = await courseService.getCourse(disciplineObj.course_id);
+            const courseObj = courseData.course || courseData;
+            setCourse(courseObj);
+            syncCanonicalDisciplineUrl(courseObj, disciplineObj);
 
             try {
                 const tasksData = await taskService.getTasks({
@@ -41,7 +55,8 @@ const DisciplineDetailPage = () => {
         } catch (error) {
             console.error(error);
             setDiscipline(null);
-            showToast('error', 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґР°РЅРЅС‹Рµ РґРёСЃС†РёРїР»РёРЅС‹');
+            setCourse(null);
+            showToast('error', 'Не удалось загрузить данные дисциплины');
         } finally {
             setLoading(false);
         }
@@ -69,23 +84,25 @@ const DisciplineDetailPage = () => {
         return (
             <MainLayout>
                 <div className="text-center py-20">
-                    <p className="text-gray-400 text-xl">Р”РёСЃС†РёРїР»РёРЅР° РЅРµ РЅР°Р№РґРµРЅР°</p>
+                    <p className="text-gray-400 text-xl">Дисциплина не найдена</p>
                     <button onClick={() => navigate('/courses')} className="mt-4 text-purple-400 hover:text-purple-300">
-                        в†ђ РќР°Р·Р°Рґ
+                        ← Назад
                     </button>
                 </div>
             </MainLayout>
         );
     }
 
+    const courseRef = course || { id: discipline.course_id, slug: courseIdOrSlug };
+
     return (
         <MainLayout>
             <div className="max-w-6xl mx-auto">
                 <button
-                    onClick={() => navigate(buildCoursePath({ id: discipline.course_id, slug: courseIdOrSlug }))}
+                    onClick={() => navigate(buildCoursePath(courseRef))}
                     className="mb-4 text-purple-400 hover:text-purple-300 flex items-center gap-1"
                 >
-                    в†ђ РќР°Р·Р°Рґ Рє РєСѓСЂСЃСѓ
+                    ← Назад к курсу
                 </button>
 
                 <div className="mb-6">
@@ -94,33 +111,33 @@ const DisciplineDetailPage = () => {
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
                             <HiClock className="w-4 h-4" />
-                            Р§Р°СЃРѕРІ: {discipline.hours || 0}
+                            Часов: {discipline.hours || 0}
                         </span>
                     </div>
                 </div>
 
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-semibold">Р—Р°РґР°РЅРёСЏ</h2>
+                    <h2 className="text-2xl font-semibold">Задания</h2>
                     {canManage && (
                         <button
                             onClick={() => setShowCreateTask(true)}
                             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition"
                         >
-                            + РЎРѕР·РґР°С‚СЊ Р·Р°РґР°РЅРёРµ
+                            + Создать задание
                         </button>
                     )}
                 </div>
 
                 {tasks.length === 0 ? (
-                    <p className="text-gray-500">Р’ СЌС‚РѕР№ РґРёСЃС†РёРїР»РёРЅРµ РїРѕРєР° РЅРµС‚ Р·Р°РґР°РЅРёР№</p>
+                    <p className="text-gray-500">В этой дисциплине пока нет заданий</p>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {tasks.map(task => (
+                        {tasks.map((task) => (
                             <motion.div
                                 key={task.id}
                                 whileHover={{ y: -4 }}
                                 className="bg-white/[0.02] backdrop-blur border border-white/10 rounded-xl p-5 cursor-pointer hover:border-purple-500 transition-all"
-                                onClick={() => navigate(buildTaskPath({ id: discipline.course_id, slug: courseIdOrSlug }, discipline, task))}
+                                onClick={() => navigate(buildTaskPath(courseRef, discipline, task))}
                             >
                                 <h3 className="text-lg font-bold mb-2">{task.name}</h3>
                                 <p className="text-gray-400 text-sm line-clamp-2 mb-3">{task.description}</p>
@@ -128,13 +145,13 @@ const DisciplineDetailPage = () => {
                                     {task.scores !== undefined && (
                                         <span className="flex items-center gap-1">
                                             <HiStar className="w-3 h-3 text-yellow-400" />
-                                            {task.scores} Р±Р°Р»Р»РѕРІ
+                                            {task.scores} баллов
                                         </span>
                                     )}
                                     {task.deadline && (
                                         <span className="flex items-center gap-1">
                                             <HiCalendar className="w-3 h-3" />
-                                            РЎСЂРѕРє Р·РґР°С‡Рё: {new Date(task.deadline).toLocaleDateString()}
+                                            Срок сдачи: {new Date(task.deadline).toLocaleDateString()}
                                         </span>
                                     )}
                                 </div>

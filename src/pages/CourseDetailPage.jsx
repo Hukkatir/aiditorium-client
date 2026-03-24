@@ -1,16 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { courseService } from '../services/courseService';
-import { disciplineService } from '../services/disciplineService';
-import { taskService } from '../services/taskService';
-import apiClient from '../services/apiClient';
-import MainLayout from '../components/layout/MainLayout';
-import CreateDisciplineModal from '../components/disciplines/CreateDisciplineModal';
-import EditCourseModal from '../components/courses/EditCourseModal';
-import ConfirmModal from '../components/layout/ConfirmModal';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
     HiArchiveBox,
     HiArchiveBoxXMark,
@@ -27,10 +17,20 @@ import {
     HiTrash,
     HiUserGroup
 } from 'react-icons/hi2';
-import { buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
+import CreateDisciplineModal from '../components/disciplines/CreateDisciplineModal';
+import ConfirmModal from '../components/layout/ConfirmModal';
+import MainLayout from '../components/layout/MainLayout';
+import EditCourseModal from '../components/courses/EditCourseModal';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { courseService } from '../services/courseService';
+import { disciplineService } from '../services/disciplineService';
+import apiClient from '../services/apiClient';
+import { taskService } from '../services/taskService';
+import { buildCoursePath, buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
 
 const formatDate = (dateString) => {
-    if (!dateString) return 'вЂ”';
+    if (!dateString) return '—';
     return new Date(dateString).toLocaleDateString('ru-RU', {
         day: 'numeric',
         month: 'short',
@@ -39,9 +39,9 @@ const formatDate = (dateString) => {
 };
 
 const getRoleLabel = (role) => {
-    if (role === 'teacher') return 'РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ';
-    if (role === 'student') return 'РЈС‡Р°С‰РёР№СЃСЏ';
-    return role || 'РЈС‡Р°С‰РёР№СЃСЏ';
+    if (role === 'teacher') return 'Преподаватель';
+    if (role === 'student') return 'Учащийся';
+    return role || 'Учащийся';
 };
 
 const CourseDetailPage = () => {
@@ -69,16 +69,24 @@ const CourseDetailPage = () => {
     const [showRemoveUserConfirm, setShowRemoveUserConfirm] = useState(false);
     const [userToRemove, setUserToRemove] = useState(null);
 
-    const courseIdentifier = courseIdOrSlug || courseId;
+    const currentCourseParam = courseIdOrSlug || courseId;
     const canManage = course && user && (course.creator_id === user.id || course.pivot?.role === 'teacher');
     const isAdmin = user?.role_id === 1;
+
+    const syncCanonicalCourseUrl = (courseObj) => {
+        const canonicalPath = buildCoursePath(courseObj);
+        if (window.location.pathname !== canonicalPath) {
+            navigate(canonicalPath, { replace: true });
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const courseData = await courseService.getCourse(courseIdentifier);
+            const courseData = await courseService.getCourse(currentCourseParam);
             const courseObj = courseData.course || courseData;
             setCourse(courseObj);
+            syncCanonicalCourseUrl(courseObj);
 
             if (courseObj.background_logo_url) {
                 setCoverUrl(courseObj.background_logo_url);
@@ -117,7 +125,7 @@ const CourseDetailPage = () => {
         } catch (error) {
             console.error(error);
             setCourse(null);
-            showToast('error', 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РґР°РЅРЅС‹Рµ РєСѓСЂСЃР°');
+            showToast('error', 'Не удалось загрузить данные курса');
         } finally {
             setLoading(false);
         }
@@ -125,23 +133,36 @@ const CourseDetailPage = () => {
 
     useEffect(() => {
         fetchData();
-    }, [courseIdentifier]);
+    }, [currentCourseParam]);
 
     const handleCopy = (text, setter) => {
         navigator.clipboard.writeText(text);
         setter(true);
         setTimeout(() => setter(false), 2000);
-        showToast('success', 'РљРѕРґ СЃРєРѕРїРёСЂРѕРІР°РЅ');
+        showToast('success', 'Код скопирован');
+    };
+
+    const runCourseAction = async (action, successMessage, closeModal) => {
+        if (!course) return;
+        try {
+            await action(course.id);
+            showToast('success', successMessage);
+            fetchData();
+        } catch (error) {
+            showToast('error', error.response?.data?.message || 'Ошибка');
+        } finally {
+            closeModal(false);
+        }
     };
 
     const handleDeleteCourse = async () => {
         if (!course || !isAdmin) return;
         try {
             await courseService.deleteCourse(course.id);
-            showToast('success', 'РљСѓСЂСЃ РїРѕР»РЅРѕСЃС‚СЊСЋ СѓРґР°Р»С‘РЅ');
+            showToast('success', 'Курс полностью удалён');
             navigate('/courses');
         } catch (error) {
-            showToast('error', error.response?.data?.message || 'РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ');
+            showToast('error', error.response?.data?.message || 'Ошибка удаления');
         } finally {
             setShowDeleteConfirm(false);
         }
@@ -152,25 +173,12 @@ const CourseDetailPage = () => {
         try {
             await courseService.removeUserFromCourse(course.id, userToRemove.id);
             setUsers((prev) => prev.filter((item) => item.id !== userToRemove.id));
-            showToast('success', `РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ ${userToRemove.name} СѓРґР°Р»С‘РЅ РёР· РєСѓСЂСЃР°`);
+            showToast('success', `Пользователь ${userToRemove.name} удалён из курса`);
         } catch (error) {
-            showToast('error', error.response?.data?.message || 'РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ');
+            showToast('error', error.response?.data?.message || 'Ошибка удаления');
         } finally {
             setShowRemoveUserConfirm(false);
             setUserToRemove(null);
-        }
-    };
-
-    const runCourseAction = async (action, successMessage, closeModal) => {
-        if (!course) return;
-        try {
-            await action(course.id);
-            showToast('success', successMessage);
-            fetchData();
-        } catch (error) {
-            showToast('error', error.response?.data?.message || 'РћС€РёР±РєР°');
-        } finally {
-            closeModal(false);
         }
     };
 
@@ -188,9 +196,9 @@ const CourseDetailPage = () => {
         return (
             <MainLayout>
                 <div className="text-center py-20">
-                    <p className="text-gray-400 text-xl">РљСѓСЂСЃ РЅРµ РЅР°Р№РґРµРЅ</p>
+                    <p className="text-gray-400 text-xl">Курс не найден</p>
                     <button onClick={() => navigate('/courses')} className="mt-4 text-purple-400 hover:text-purple-300">
-                        в†ђ Р’РµСЂРЅСѓС‚СЊСЃСЏ Рє РєСѓСЂСЃР°Рј
+                        ← Вернуться к курсам
                     </button>
                 </div>
             </MainLayout>
@@ -198,16 +206,20 @@ const CourseDetailPage = () => {
     }
 
     const tabs = [
-        { id: 'disciplines', label: 'Р”РёСЃС†РёРїР»РёРЅС‹', count: disciplines.length },
-        { id: 'tasks', label: 'Р—Р°РґР°РЅРёСЏ', count: tasks.length },
-        { id: 'users', label: 'РЈС‡Р°СЃС‚РЅРёРєРё', count: users.length }
+        { id: 'disciplines', label: 'Дисциплины', count: disciplines.length },
+        { id: 'tasks', label: 'Задания', count: tasks.length },
+        { id: 'users', label: 'Участники', count: users.length }
     ];
 
     return (
         <MainLayout>
             <div className="max-w-6xl mx-auto">
                 <div className="relative w-full h-64 mb-6 rounded-2xl overflow-hidden">
-                    {coverUrl ? <img src={coverUrl} alt={course.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600" />}
+                    {coverUrl ? (
+                        <img src={coverUrl} alt={course.name} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600" />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end p-6">
                         <h1 className="text-4xl font-bold text-white mb-2">{course.name}</h1>
                         <p className="text-gray-200 text-lg max-w-2xl">{course.description}</p>
@@ -217,24 +229,26 @@ const CourseDetailPage = () => {
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white/5 p-4 rounded-xl">
                     <div className="flex items-center gap-4 flex-wrap">
                         <HiUserGroup className="w-5 h-5 text-gray-400" />
-                        <span className="text-gray-300">{users.length} СѓС‡Р°СЃС‚РЅРёРєРѕРІ</span>
+                        <span className="text-gray-300">{users.length} участников</span>
                         <HiCalendar className="w-5 h-5 text-gray-400" />
-                        <span className="text-gray-300">РЎРѕР·РґР°РЅ: {formatDate(course.created_at)}</span>
+                        <span className="text-gray-300">Создан: {formatDate(course.created_at)}</span>
                         <span className={`px-2 py-1 text-xs rounded-full ${course.is_closed ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
-                            {course.is_closed ? 'Р—Р°РєСЂС‹С‚' : 'РћС‚РєСЂС‹С‚'}
+                            {course.is_closed ? 'Закрыт' : 'Открыт'}
                         </span>
-                        {course.status === 'archived' && <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">РђСЂС…РёРІРёСЂРѕРІР°РЅ</span>}
+                        {course.status === 'archived' && (
+                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">Архивирован</span>
+                        )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
                         <div className="flex items-center gap-1 bg-white/5 px-3 py-1 rounded-lg">
-                            <span className="text-xs text-gray-400">РЎС‚СѓРґРµРЅС‚С‹:</span>
+                            <span className="text-xs text-gray-400">Студенты:</span>
                             <code className="text-purple-300 font-mono text-sm">{course.invite_code}</code>
                             <button onClick={() => handleCopy(course.invite_code, setCopiedInvite)} className="p-1 hover:bg-white/10 rounded">
                                 {copiedInvite ? <HiClipboardDocumentCheck className="w-4 h-4 text-green-400" /> : <HiClipboard className="w-4 h-4" />}
                             </button>
                             {canManage && (
-                                <button onClick={() => runCourseAction(courseService.regenerateInviteCode, 'РљРѕРґ РїСЂРёРіР»Р°С€РµРЅРёСЏ РѕР±РЅРѕРІР»С‘РЅ', () => {})} className="p-1 hover:bg-white/10 rounded" title="РћР±РЅРѕРІРёС‚СЊ РєРѕРґ">
+                                <button onClick={() => runCourseAction(courseService.regenerateInviteCode, 'Код приглашения обновлён', () => {})} className="p-1 hover:bg-white/10 rounded" title="Обновить код">
                                     <HiArrowPath className="w-4 h-4" />
                                 </button>
                             )}
@@ -242,12 +256,12 @@ const CourseDetailPage = () => {
 
                         {canManage && course.invite_code_teacher && (
                             <div className="flex items-center gap-1 bg-white/5 px-3 py-1 rounded-lg">
-                                <span className="text-xs text-gray-400">РЈС‡РёС‚РµР»СЏ:</span>
+                                <span className="text-xs text-gray-400">Учителя:</span>
                                 <code className="text-purple-300 font-mono text-sm">{course.invite_code_teacher}</code>
                                 <button onClick={() => handleCopy(course.invite_code_teacher, setCopiedTeacherInvite)} className="p-1 hover:bg-white/10 rounded">
                                     {copiedTeacherInvite ? <HiClipboardDocumentCheck className="w-4 h-4 text-green-400" /> : <HiClipboard className="w-4 h-4" />}
                                 </button>
-                                <button onClick={() => runCourseAction(courseService.generateTeacherCode, 'РљРѕРґ РґР»СЏ СѓС‡РёС‚РµР»СЏ РѕР±РЅРѕРІР»С‘РЅ', () => {})} className="p-1 hover:bg-white/10 rounded" title="РћР±РЅРѕРІРёС‚СЊ РєРѕРґ СѓС‡РёС‚РµР»СЏ">
+                                <button onClick={() => runCourseAction(courseService.generateTeacherCode, 'Код для учителя обновлён', () => {})} className="p-1 hover:bg-white/10 rounded" title="Обновить код учителя">
                                     <HiArrowPath className="w-4 h-4" />
                                 </button>
                             </div>
@@ -291,11 +305,11 @@ const CourseDetailPage = () => {
                     {activeTab === 'disciplines' && (
                         <motion.div key="disciplines" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-semibold">Р”РёСЃС†РёРїР»РёРЅС‹</h2>
-                                {canManage && <button onClick={() => setShowCreateDiscipline(true)} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition">+ РЎРѕР·РґР°С‚СЊ РґРёСЃС†РёРїР»РёРЅСѓ</button>}
+                                <h2 className="text-2xl font-semibold">Дисциплины</h2>
+                                {canManage && <button onClick={() => setShowCreateDiscipline(true)} className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition">+ Создать дисциплину</button>}
                             </div>
                             {disciplines.length === 0 ? (
-                                <p className="text-gray-500">Р’ СЌС‚РѕРј РєСѓСЂСЃРµ РїРѕРєР° РЅРµС‚ РґРёСЃС†РёРїР»РёРЅ</p>
+                                <p className="text-gray-500">В этом курсе пока нет дисциплин</p>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {disciplines.map((discipline) => (
@@ -306,7 +320,7 @@ const CourseDetailPage = () => {
                                         >
                                             <h3 className="text-xl font-bold mb-2">{discipline.name}</h3>
                                             <p className="text-gray-400 text-sm line-clamp-2">{discipline.description}</p>
-                                            <div className="mt-3 text-xs text-gray-500">Р§Р°СЃРѕРІ: {discipline.hours || 0}</div>
+                                            <div className="mt-3 text-xs text-gray-500">Часов: {discipline.hours || 0}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -316,9 +330,9 @@ const CourseDetailPage = () => {
 
                     {activeTab === 'tasks' && (
                         <motion.div key="tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            <h2 className="text-2xl font-semibold mb-6">Р—Р°РґР°РЅРёСЏ</h2>
+                            <h2 className="text-2xl font-semibold mb-6">Задания</h2>
                             {tasks.length === 0 ? (
-                                <p className="text-gray-500">Р’ СЌС‚РѕРј РєСѓСЂСЃРµ РїРѕРєР° РЅРµС‚ Р·Р°РґР°РЅРёР№</p>
+                                <p className="text-gray-500">В этом курсе пока нет заданий</p>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {tasks.map((task) => {
@@ -332,9 +346,9 @@ const CourseDetailPage = () => {
                                                 <h3 className="text-lg font-bold mb-1">{task.name}</h3>
                                                 <p className="text-gray-400 text-sm line-clamp-2 mb-3">{task.description}</p>
                                                 <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                                                    {task.scores !== undefined && <span className="flex items-center gap-1"><HiStar className="w-3 h-3 text-yellow-400" />{task.scores} Р±Р°Р»Р»РѕРІ</span>}
-                                                    {task.deadline && <span className="flex items-center gap-1"><HiClock className="w-3 h-3" />РЎСЂРѕРє СЃРґР°С‡Рё: {formatDate(task.deadline)}</span>}
-                                                    <span className="flex items-center gap-1"><HiCalendar className="w-3 h-3" />РЎРѕР·РґР°РЅРѕ: {formatDate(task.created_at)}</span>
+                                                    {task.scores !== undefined && <span className="flex items-center gap-1"><HiStar className="w-3 h-3 text-yellow-400" />{task.scores} баллов</span>}
+                                                    {task.deadline && <span className="flex items-center gap-1"><HiClock className="w-3 h-3" />Срок сдачи: {formatDate(task.deadline)}</span>}
+                                                    <span className="flex items-center gap-1"><HiCalendar className="w-3 h-3" />Создано: {formatDate(task.created_at)}</span>
                                                     {discipline && <span className="flex items-center gap-1"><HiMiniRectangleStack className="w-3 h-3" />{discipline.name}</span>}
                                                 </div>
                                             </div>
@@ -347,9 +361,9 @@ const CourseDetailPage = () => {
 
                     {activeTab === 'users' && (
                         <motion.div key="users" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            <h2 className="text-2xl font-semibold mb-6">РЈС‡Р°СЃС‚РЅРёРєРё ({users.length})</h2>
+                            <h2 className="text-2xl font-semibold mb-6">Участники ({users.length})</h2>
                             {users.length === 0 ? (
-                                <p className="text-gray-500">Р’ СЌС‚РѕРј РєСѓСЂСЃРµ РїРѕРєР° РЅРµС‚ СѓС‡Р°СЃС‚РЅРёРєРѕРІ</p>
+                                <p className="text-gray-500">В этом курсе пока нет участников</p>
                             ) : (
                                 <div className="space-y-2">
                                     {users.map((item) => (
@@ -393,12 +407,12 @@ const CourseDetailPage = () => {
                     fetchData();
                 }}
             />
-            <ConfirmModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={handleDeleteCourse} title="РЈРґР°Р»РµРЅРёРµ РєСѓСЂСЃР°" message="Р’С‹ СѓРІРµСЂРµРЅС‹? Р­С‚Рѕ РґРµР№СЃС‚РІРёРµ РЅРµРѕР±СЂР°С‚РёРјРѕ." confirmText="РЈРґР°Р»РёС‚СЊ" />
-            <ConfirmModal isOpen={showArchiveConfirm} onClose={() => setShowArchiveConfirm(false)} onConfirm={() => runCourseAction(courseService.archiveCourse, 'РљСѓСЂСЃ Р°СЂС…РёРІРёСЂРѕРІР°РЅ', setShowArchiveConfirm)} title="РђСЂС…РёРІР°С†РёСЏ РєСѓСЂСЃР°" message="РљСѓСЂСЃ Р±СѓРґРµС‚ РїРµСЂРµРјРµС‰С‘РЅ РІ Р°СЂС…РёРІ." confirmText="РђСЂС…РёРІРёСЂРѕРІР°С‚СЊ" />
-            <ConfirmModal isOpen={showRestoreConfirm} onClose={() => setShowRestoreConfirm(false)} onConfirm={() => runCourseAction(courseService.restoreCourse, 'РљСѓСЂСЃ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅ', setShowRestoreConfirm)} title="Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ РєСѓСЂСЃР°" message="РљСѓСЂСЃ Р±СѓРґРµС‚ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅ РёР· Р°СЂС…РёРІР°." confirmText="Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ" />
-            <ConfirmModal isOpen={showCloseConfirm} onClose={() => setShowCloseConfirm(false)} onConfirm={() => runCourseAction(courseService.closeCourse, 'РљСѓСЂСЃ Р·Р°РєСЂС‹С‚ РґР»СЏ РЅРѕРІС‹С… СѓС‡Р°СЃС‚РЅРёРєРѕРІ', setShowCloseConfirm)} title="Р—Р°РєСЂС‹С‚РёРµ РєСѓСЂСЃР°" message="РќРѕРІС‹Рµ СѓС‡Р°СЃС‚РЅРёРєРё РЅРµ СЃРјРѕРіСѓС‚ РІСЃС‚СѓРїРёС‚СЊ РІ РєСѓСЂСЃ." confirmText="Р—Р°РєСЂС‹С‚СЊ" />
-            <ConfirmModal isOpen={showReopenConfirm} onClose={() => setShowReopenConfirm(false)} onConfirm={() => runCourseAction(courseService.reopenCourse, 'РљСѓСЂСЃ РѕС‚РєСЂС‹С‚ РґР»СЏ РЅРѕРІС‹С… СѓС‡Р°СЃС‚РЅРёРєРѕРІ', setShowReopenConfirm)} title="РћС‚РєСЂС‹С‚РёРµ РєСѓСЂСЃР°" message="РќРѕРІС‹Рµ СѓС‡Р°СЃС‚РЅРёРєРё СЃРЅРѕРІР° СЃРјРѕРіСѓС‚ РІСЃС‚СѓРїР°С‚СЊ РІ РєСѓСЂСЃ." confirmText="РћС‚РєСЂС‹С‚СЊ" />
-            <ConfirmModal isOpen={showRemoveUserConfirm} onClose={() => { setShowRemoveUserConfirm(false); setUserToRemove(null); }} onConfirm={handleRemoveUser} title="РЈРґР°Р»РµРЅРёРµ СѓС‡Р°СЃС‚РЅРёРєР°" message={`РЈРґР°Р»РёС‚СЊ ${userToRemove?.name || 'СЌС‚РѕРіРѕ СѓС‡Р°СЃС‚РЅРёРєР°'} РёР· РєСѓСЂСЃР°?`} confirmText="РЈРґР°Р»РёС‚СЊ" />
+            <ConfirmModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={handleDeleteCourse} title="Удаление курса" message="Вы уверены? Это действие необратимо." confirmText="Удалить" />
+            <ConfirmModal isOpen={showArchiveConfirm} onClose={() => setShowArchiveConfirm(false)} onConfirm={() => runCourseAction(courseService.archiveCourse, 'Курс архивирован', setShowArchiveConfirm)} title="Архивация курса" message="Курс будет перемещён в архив." confirmText="Архивировать" />
+            <ConfirmModal isOpen={showRestoreConfirm} onClose={() => setShowRestoreConfirm(false)} onConfirm={() => runCourseAction(courseService.restoreCourse, 'Курс восстановлен', setShowRestoreConfirm)} title="Восстановление курса" message="Курс будет восстановлен из архива." confirmText="Восстановить" />
+            <ConfirmModal isOpen={showCloseConfirm} onClose={() => setShowCloseConfirm(false)} onConfirm={() => runCourseAction(courseService.closeCourse, 'Курс закрыт для новых участников', setShowCloseConfirm)} title="Закрытие курса" message="Новые участники не смогут вступить в курс." confirmText="Закрыть" />
+            <ConfirmModal isOpen={showReopenConfirm} onClose={() => setShowReopenConfirm(false)} onConfirm={() => runCourseAction(courseService.reopenCourse, 'Курс снова открыт для новых участников', setShowReopenConfirm)} title="Открытие курса" message="Новые участники снова смогут вступить в курс." confirmText="Открыть" />
+            <ConfirmModal isOpen={showRemoveUserConfirm} onClose={() => { setShowRemoveUserConfirm(false); setUserToRemove(null); }} onConfirm={handleRemoveUser} title="Удаление участника" message={`Удалить ${userToRemove?.name || 'этого участника'} из курса?`} confirmText="Удалить" />
         </MainLayout>
     );
 };

@@ -9,7 +9,10 @@ import DisciplineDetailPage from './pages/DisciplineDetailPage';
 import TaskDetailPage from './pages/TaskDetailPage';
 // Защищённый маршрут (без Layout – Layout уже внутри страниц)
 const ProtectedRoute = ({ children }) => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, loading } = useAuth();
+    if (loading) {
+        return null;
+    }
     if (!isAuthenticated) {
         return <Navigate to="/auth" replace />;
     }
@@ -18,7 +21,10 @@ const ProtectedRoute = ({ children }) => {
 
 // Публичный маршрут (без Layout)
 const PublicRoute = ({ children }) => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, loading } = useAuth();
+    if (loading) {
+        return null;
+    }
     if (isAuthenticated) {
         return <Navigate to="/courses" replace />;
     }

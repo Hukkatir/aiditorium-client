@@ -1,13 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { taskService } from '../services/taskService';
-import { courseService } from '../services/courseService';
-import { userService } from '../services/userService';
-import MainLayout from '../components/layout/MainLayout';
-import EditTaskModal from '../components/tasks/EditTaskModal';
-import ConfirmModal from '../components/layout/ConfirmModal';
 import {
     HiArrowLeft,
     HiCalendar,
@@ -18,11 +10,20 @@ import {
     HiTrash,
     HiUserCircle
 } from 'react-icons/hi2';
+import EditTaskModal from '../components/tasks/EditTaskModal';
+import ConfirmModal from '../components/layout/ConfirmModal';
+import MainLayout from '../components/layout/MainLayout';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { courseService } from '../services/courseService';
 import apiClient from '../services/apiClient';
-import { buildDisciplinePath } from '../utils/routeUtils';
+import { disciplineService } from '../services/disciplineService';
+import { taskService } from '../services/taskService';
+import { userService } from '../services/userService';
+import { buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
 
 const formatDateTime = (dateString) => {
-    if (!dateString) return 'вЂ”';
+    if (!dateString) return '—';
     return new Date(dateString).toLocaleString('ru-RU', {
         day: 'numeric',
         month: 'numeric',
@@ -41,6 +42,7 @@ const TaskDetailPage = () => {
     const [task, setTask] = useState(null);
     const [creator, setCreator] = useState(null);
     const [course, setCourse] = useState(null);
+    const [discipline, setDiscipline] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -50,8 +52,20 @@ const TaskDetailPage = () => {
 
     const disciplinePath = buildDisciplinePath(
         course || { id: task?.course_id, slug: courseIdOrSlug },
-        { id: task?.discipline_id, slug: disciplineIdOrSlug }
+        discipline || { id: task?.discipline_id, slug: disciplineIdOrSlug }
     );
+
+    const syncCanonicalTaskUrl = (taskObj, courseObj, disciplineObj) => {
+        const canonicalPath = buildTaskPath(
+            courseObj || { id: taskObj.course_id, slug: courseIdOrSlug },
+            disciplineObj || { id: taskObj.discipline_id, slug: disciplineIdOrSlug },
+            taskObj
+        );
+
+        if (window.location.pathname !== canonicalPath) {
+            navigate(canonicalPath, { replace: true });
+        }
+    };
 
     const fetchTask = async () => {
         setLoading(true);
@@ -60,10 +74,25 @@ const TaskDetailPage = () => {
             const taskObj = data.task || data;
             setTask(taskObj);
 
+            let courseObj = null;
             if (taskObj.course_id) {
                 const courseData = await courseService.getCourse(taskObj.course_id);
-                setCourse(courseData.course || courseData);
+                courseObj = courseData.course || courseData;
+                setCourse(courseObj);
+            } else {
+                setCourse(null);
             }
+
+            let disciplineObj = null;
+            if (taskObj.course_id && taskObj.discipline_id) {
+                const disciplineData = await disciplineService.getDiscipline(taskObj.course_id, taskObj.discipline_id);
+                disciplineObj = disciplineData.discipline || disciplineData;
+                setDiscipline(disciplineObj);
+            } else {
+                setDiscipline(null);
+            }
+
+            syncCanonicalTaskUrl(taskObj, courseObj, disciplineObj);
 
             if (taskObj.user_id && taskObj.user_id !== user?.id) {
                 try {
@@ -80,7 +109,7 @@ const TaskDetailPage = () => {
         } catch (error) {
             console.error(error);
             setTask(null);
-            showToast('error', 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р·Р°РґР°РЅРёРµ');
+            showToast('error', 'Не удалось загрузить задание');
         } finally {
             setLoading(false);
         }
@@ -98,10 +127,10 @@ const TaskDetailPage = () => {
         if (!task) return;
         try {
             await taskService.deleteTask(task.id);
-            showToast('success', 'Р—Р°РґР°РЅРёРµ СѓРґР°Р»РµРЅРѕ');
+            showToast('success', 'Задание удалено');
             navigate(disciplinePath);
         } catch (error) {
-            showToast('error', error.response?.data?.message || 'РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ');
+            showToast('error', error.response?.data?.message || 'Ошибка удаления');
         } finally {
             setShowDeleteConfirm(false);
         }
@@ -109,7 +138,7 @@ const TaskDetailPage = () => {
 
     const handleSubmitFile = async () => {
         if (!submitFile || !task) {
-            showToast('error', 'Р’С‹Р±РµСЂРёС‚Рµ С„Р°Р№Р»');
+            showToast('error', 'Выберите файл');
             return;
         }
 
@@ -120,11 +149,11 @@ const TaskDetailPage = () => {
             await apiClient.post(`/task/${task.id}/submit`, form, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            showToast('success', 'Р Р°Р±РѕС‚Р° РѕС‚РїСЂР°РІР»РµРЅР°');
+            showToast('success', 'Работа отправлена');
             setShowSubmitModal(false);
             setSubmitFile(null);
         } catch (error) {
-            showToast('error', error.response?.data?.message || 'РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё');
+            showToast('error', error.response?.data?.message || 'Ошибка отправки');
         } finally {
             setSubmitting(false);
         }
@@ -144,9 +173,9 @@ const TaskDetailPage = () => {
         return (
             <MainLayout>
                 <div className="text-center py-20">
-                    <p className="text-gray-400 text-xl">Р—Р°РґР°РЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ</p>
+                    <p className="text-gray-400 text-xl">Задание не найдено</p>
                     <button onClick={() => navigate(disciplinePath)} className="mt-4 text-purple-400 hover:text-purple-300 flex items-center gap-1 mx-auto">
-                        <HiArrowLeft className="w-5 h-5" /> РќР°Р·Р°Рґ
+                        <HiArrowLeft className="w-5 h-5" /> Назад
                     </button>
                 </div>
             </MainLayout>
@@ -184,7 +213,7 @@ const TaskDetailPage = () => {
                         )}
                         {!canManage && (
                             <button onClick={() => setShowSubmitModal(true)} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-medium transition w-full sm:w-auto">
-                                РћС‚РїСЂР°РІРёС‚СЊ СЂР°Р±РѕС‚Сѓ
+                                Отправить работу
                             </button>
                         )}
                     </div>
@@ -192,7 +221,7 @@ const TaskDetailPage = () => {
                     <div className="space-y-4">
                         <div className="bg-white/[0.02] backdrop-blur border border-white/10 rounded-xl p-5">
                             <div className="border-b border-white/10">
-                                <div className="text-gray-400 mb-2">РЎРѕР·РґР°РЅРѕ:</div>
+                                <div className="text-gray-400 mb-2">Создано:</div>
                                 <div className="mb-3 flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center overflow-hidden">
                                         {creator?.avatar_url ? (
@@ -202,7 +231,7 @@ const TaskDetailPage = () => {
                                         )}
                                     </div>
                                     <div>
-                                        <p className="font-medium">{creator?.name || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}</p>
+                                        <p className="font-medium">{creator?.name || 'Неизвестно'}</p>
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
                                             <HiClock className="w-3 h-3" />
                                             {formatDateTime(task.created_at)}
@@ -212,7 +241,7 @@ const TaskDetailPage = () => {
                             </div>
 
                             <div className="flex items-center justify-between py-3 border-b border-white/10">
-                                <span className="text-gray-400">Р‘Р°Р»Р»С‹</span>
+                                <span className="text-gray-400">Баллы</span>
                                 <span className="flex items-center gap-1 font-semibold">
                                     <HiStar className="w-4 h-4 text-yellow-400" />
                                     {task.scores ?? 0}
@@ -220,16 +249,16 @@ const TaskDetailPage = () => {
                             </div>
 
                             <div className="flex items-center justify-between py-3 border-b border-white/10">
-                                <span className="text-gray-400">РЎСЂРѕРє СЃРґР°С‡Рё</span>
+                                <span className="text-gray-400">Срок сдачи</span>
                                 <span className="flex items-center gap-1 text-right">
                                     <HiCalendar className="w-4 h-4 text-gray-500" />
-                                    {task.deadline ? formatDateTime(task.deadline) : 'вЂ”'}
+                                    {task.deadline ? formatDateTime(task.deadline) : '—'}
                                 </span>
                             </div>
 
                             {task.attachment_id && (
                                 <div className="py-3">
-                                    <div className="text-gray-400 mb-2">РџСЂРёРєСЂРµРїР»С‘РЅРЅС‹Р№ С„Р°Р№Р»</div>
+                                    <div className="text-gray-400 mb-2">Прикреплённый файл</div>
                                     <a
                                         href={`https://aiditorium.ru/api/file/${task.attachment_id}/download`}
                                         target="_blank"
@@ -237,7 +266,7 @@ const TaskDetailPage = () => {
                                         className="flex items-center gap-2 text-purple-400 hover:text-purple-300 break-all"
                                     >
                                         <HiPaperClip className="w-4 h-4 flex-shrink-0" />
-                                        <span className="text-sm">РЎРєР°С‡Р°С‚СЊ РІР»РѕР¶РµРЅРёРµ</span>
+                                        <span className="text-sm">Скачать вложение</span>
                                     </a>
                                 </div>
                             )}
@@ -261,27 +290,27 @@ const TaskDetailPage = () => {
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
                 onConfirm={handleDelete}
-                title="РЈРґР°Р»РµРЅРёРµ Р·Р°РґР°РЅРёСЏ"
-                message="Р’С‹ СѓРІРµСЂРµРЅС‹? Р­С‚Рѕ РґРµР№СЃС‚РІРёРµ РЅРµРѕР±СЂР°С‚РёРјРѕ."
-                confirmText="РЈРґР°Р»РёС‚СЊ"
+                title="Удаление задания"
+                message="Вы уверены? Это действие необратимо."
+                confirmText="Удалить"
             />
 
             {showSubmitModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSubmitModal(false)}>
                     <div className="bg-[#1A1A1C] rounded-2xl max-w-md w-full p-6 border border-white/10" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-2xl font-bold text-white mb-4">РћС‚РїСЂР°РІРёС‚СЊ СЂР°Р±РѕС‚Сѓ</h2>
+                        <h2 className="text-2xl font-bold text-white mb-4">Отправить работу</h2>
                         <input
                             type="file"
                             onChange={(e) => setSubmitFile(e.target.files[0])}
                             className="w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700"
                         />
-                        {submitFile && <p className="text-sm text-gray-400 mt-2">Р’С‹Р±СЂР°РЅ: {submitFile.name}</p>}
+                        {submitFile && <p className="text-sm text-gray-400 mt-2">Выбран: {submitFile.name}</p>}
                         <div className="flex gap-4 mt-6">
                             <button onClick={handleSubmitFile} disabled={submitting} className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold disabled:opacity-50">
-                                {submitting ? 'РћС‚РїСЂР°РІРєР°...' : 'РћС‚РїСЂР°РІРёС‚СЊ'}
+                                {submitting ? 'Отправка...' : 'Отправить'}
                             </button>
                             <button onClick={() => setShowSubmitModal(false)} className="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold">
-                                РћС‚РјРµРЅР°
+                                Отмена
                             </button>
                         </div>
                     </div>
