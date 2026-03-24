@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiXMark } from 'react-icons/hi2';
 
@@ -29,18 +29,8 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText 
                     </div>
                     <p className="text-gray-400 mb-6">{message}</p>
                     <div className="flex gap-3">
-                        <button
-                            onClick={onConfirm}
-                            className="flex-1 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition"
-                        >
-                            {confirmText}
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="flex-1 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition"
-                        >
-                            {cancelText}
-                        </button>
+                        <button onClick={onConfirm} className="flex-1 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition">{confirmText}</button>
+                        <button onClick={onClose} className="flex-1 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition">{cancelText}</button>
                     </div>
                 </motion.div>
             </motion.div>
