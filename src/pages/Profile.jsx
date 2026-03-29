@@ -18,10 +18,9 @@ const ALLOWED_AVATAR_TYPES = new Set([
     'image/jpeg',
     'image/jpg',
     'image/png',
-    'image/gif',
     'image/webp'
 ]);
-const ALLOWED_AVATAR_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp']);
+const ALLOWED_AVATAR_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
 const MAX_AVATAR_SIZE_BYTES = 3 * 1024 * 1024;
 
@@ -103,7 +102,7 @@ const Profile = () => {
         if (!file || !user?.id) return;
 
         if (!isSupportedAvatarFile(file)) {
-            const message = 'Для аватара поддерживаются только JPG, PNG, GIF и WEBP.';
+            const message = 'Для аватара поддерживаются только JPG, PNG и WEBP.';
             setAvatarError(message);
             showToast('error', message);
             return;
@@ -330,7 +329,7 @@ const Profile = () => {
                             />
 
                             <p className="mt-3 max-w-xs text-xs text-gray-500">
-                                JPG, PNG, GIF, WEBP. После выбора можно обрезать изображение под аватар. Максимальный размер итогового файла — 3 МБ.
+                                JPG, PNG, WEBP. После выбора можно обрезать изображение под аватар. Максимальный размер итогового файла — 3 МБ.
                             </p>
                             {avatarError && <p className="mt-2 max-w-xs text-sm text-red-400">{avatarError}</p>}
                         </div>
