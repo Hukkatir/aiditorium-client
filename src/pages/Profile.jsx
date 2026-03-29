@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     HiUser,
-    HiEnvelope,
     HiPencilSquare,
     HiXMark,
     HiCamera,
@@ -14,9 +12,24 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { userService } from '../services/userService';
 import MainLayout from '../components/layout/MainLayout';
+import AvatarCropModal from '../components/profile/AvatarCropModal';
+
+const ALLOWED_AVATAR_TYPES = new Set([
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp'
+]);
+
+const MAX_AVATAR_SIZE_BYTES = 3 * 1024 * 1024;
+
+const getAvatarErrorMessage = (error) =>
+    error.response?.data?.errors?.avatar?.[0]
+    || error.response?.data?.message
+    || 'Ошибка загрузки аватара';
 
 const Profile = () => {
-    const navigate = useNavigate();
     const fileInputRef = useRef(null);
     const { user, updateUser } = useAuth();
     const { showToast } = useToast();
@@ -31,6 +44,8 @@ const Profile = () => {
         password_confirmation: ''
     });
     const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || null);
+    const [avatarError, setAvatarError] = useState('');
+    const [avatarCropSource, setAvatarCropSource] = useState(null);
 
     // Синхронизация при изменении user
     useEffect(() => {
@@ -43,6 +58,12 @@ const Profile = () => {
         setAvatarPreview(user?.avatar_url || null);
     }, [user]);
 
+    useEffect(() => () => {
+        if (avatarCropSource?.url) {
+            URL.revokeObjectURL(avatarCropSource.url);
+        }
+    }, [avatarCropSource]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setEditForm(prev => ({ ...prev, [name]: value }));
@@ -50,18 +71,56 @@ const Profile = () => {
 
     const handleAvatarClick = () => fileInputRef.current?.click();
 
-    const handleAvatarChange = async (e) => {
+    const resetAvatarCropSource = () => {
+        setAvatarCropSource((current) => {
+            if (current?.url) {
+                URL.revokeObjectURL(current.url);
+            }
+
+            return null;
+        });
+    };
+
+    const handleAvatarChange = (e) => {
         const file = e.target.files?.[0];
+        e.target.value = '';
+
         if (!file || !user?.id) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => setAvatarPreview(reader.result);
-        reader.readAsDataURL(file);
+        if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+            const message = 'Для аватара поддерживаются только JPG, PNG, GIF и WEBP.';
+            setAvatarError(message);
+            showToast('error', message);
+            return;
+        }
+
+        setAvatarError('');
+        const previewUrl = URL.createObjectURL(file);
+
+        setAvatarCropSource((current) => {
+            if (current?.url) {
+                URL.revokeObjectURL(current.url);
+            }
+
+            return { file, url: previewUrl };
+        });
+    };
+
+    const handleAvatarCropConfirm = async (croppedFile) => {
+        if (!user?.id) return;
+
+        if (croppedFile.size > MAX_AVATAR_SIZE_BYTES) {
+            const message = 'Файл аватара слишком большой. Максимальный размер — 3 МБ.';
+            setAvatarError(message);
+            showToast('error', message);
+            return;
+        }
 
         setUploadingAvatar(true);
+        setAvatarError('');
+
         try {
-            const data = await userService.uploadAvatar(user.id, file);
-            console.log('Avatar upload response:', data);
+            const data = await userService.uploadAvatar(user.id, croppedFile);
 
             if (data.status === 'success') {
                 if (data.user) {
@@ -69,15 +128,19 @@ const Profile = () => {
                 } else if (data.avatar_url) {
                     updateUser({ ...user, avatar_url: data.avatar_url });
                 }
+
+                resetAvatarCropSource();
                 showToast('success', 'Аватар загружен');
             } else {
-                showToast('error', data.message || 'Ошибка загрузки аватара');
-                setAvatarPreview(user?.avatar_url || null);
+                const message = data.message || 'Ошибка загрузки аватара';
+                setAvatarError(message);
+                showToast('error', message);
             }
-        } catch (err) {
-            console.error(err);
-            showToast('error', err.response?.data?.message || 'Ошибка загрузки аватара');
-            setAvatarPreview(user?.avatar_url || null);
+        } catch (error) {
+            console.error(error);
+            const message = getAvatarErrorMessage(error);
+            setAvatarError(message);
+            showToast('error', message);
         } finally {
             setUploadingAvatar(false);
         }
@@ -87,6 +150,7 @@ const Profile = () => {
         if (!user?.id) return;
 
         setUploadingAvatar(true);
+        setAvatarError('');
         try {
             const data = await userService.deleteAvatar(user.id);
             if (data.status === 'success') {
@@ -119,7 +183,6 @@ const Profile = () => {
 
         try {
             const data = await userService.updateProfile(user.id, updateData);
-            console.log('Profile update response:', data);
             if (data.status === 'success' && data.user) {
                 updateUser(data.user);
                 showToast('success', 'Профиль обновлён');
@@ -250,6 +313,11 @@ const Profile = () => {
                                 accept="image/*"
                                 className="hidden"
                             />
+
+                            <p className="mt-3 max-w-xs text-xs text-gray-500">
+                                JPG, PNG, GIF, WEBP. После выбора можно обрезать изображение под аватар. Максимальный размер итогового файла — 3 МБ.
+                            </p>
+                            {avatarError && <p className="mt-2 max-w-xs text-sm text-red-400">{avatarError}</p>}
                         </div>
 
                         {/* Информация о пользователе */}
@@ -295,6 +363,15 @@ const Profile = () => {
                     </div>
                 </div>
             </motion.div>
+
+            <AvatarCropModal
+                isOpen={Boolean(avatarCropSource)}
+                imageUrl={avatarCropSource?.url}
+                fileName={avatarCropSource?.file?.name}
+                processing={uploadingAvatar}
+                onClose={resetAvatarCropSource}
+                onConfirm={handleAvatarCropConfirm}
+            />
         </MainLayout>
     );
 };
