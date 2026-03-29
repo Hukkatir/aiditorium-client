@@ -21,6 +21,7 @@ const ALLOWED_AVATAR_TYPES = new Set([
     'image/gif',
     'image/webp'
 ]);
+const ALLOWED_AVATAR_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp']);
 
 const MAX_AVATAR_SIZE_BYTES = 3 * 1024 * 1024;
 
@@ -28,6 +29,20 @@ const getAvatarErrorMessage = (error) =>
     error.response?.data?.errors?.avatar?.[0]
     || error.response?.data?.message
     || 'Ошибка загрузки аватара';
+
+const isSupportedAvatarFile = (file) => {
+    const fileType = String(file?.type || '').toLowerCase();
+    const fileExtension = String(file?.name || '')
+        .split('.')
+        .pop()
+        ?.toLowerCase() || '';
+
+    if (ALLOWED_AVATAR_TYPES.has(fileType)) {
+        return true;
+    }
+
+    return ALLOWED_AVATAR_EXTENSIONS.has(fileExtension);
+};
 
 const Profile = () => {
     const fileInputRef = useRef(null);
@@ -87,7 +102,7 @@ const Profile = () => {
 
         if (!file || !user?.id) return;
 
-        if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+        if (!isSupportedAvatarFile(file)) {
             const message = 'Для аватара поддерживаются только JPG, PNG, GIF и WEBP.';
             setAvatarError(message);
             showToast('error', message);
