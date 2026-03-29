@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { HiXMark } from 'react-icons/hi2';
 import { courseService } from '../../services/courseService';
 import { useToast } from '../../context/ToastContext';
-import { slugifyPreview } from '../../utils/slugUtils';
+import { getSlugValidationError, slugifyPreview } from '../../utils/slugUtils';
 
 const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
     const { showToast } = useToast();
@@ -37,6 +37,8 @@ const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
     const validate = () => {
         const err = {};
         if (!formData.name.trim()) err.name = 'Название обязательно';
+        const slugError = getSlugValidationError(formData.slug);
+        if (slugError) err.slug = slugError;
         return err;
     };
 
@@ -54,7 +56,7 @@ const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
             form.append('name', formData.name);
             form.append('description', formData.description);
             form.append('status', formData.status);
-            form.append('slug', formData.slug);
+            if (formData.slug.trim()) form.append('slug', formData.slug);
             if (backgroundFile) form.append('background_logo', backgroundFile);
 
             await courseService.createCourse(form);

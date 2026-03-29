@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { HiXMark } from 'react-icons/hi2';
 import { disciplineService } from '../../services/disciplineService';
 import { useToast } from '../../context/ToastContext';
-import { slugifyPreview } from '../../utils/slugUtils';
+import { getSlugValidationError, slugifyPreview } from '../../utils/slugUtils';
 
 const CreateDisciplineModal = ({ isOpen, onClose, onSuccess, courseId }) => {
     const { showToast } = useToast();
@@ -27,6 +27,8 @@ const CreateDisciplineModal = ({ isOpen, onClose, onSuccess, courseId }) => {
     const validate = () => {
         const err = {};
         if (!formData.name.trim()) err.name = 'Название обязательно';
+        const slugError = getSlugValidationError(formData.slug);
+        if (slugError) err.slug = slugError;
         return err;
     };
 
@@ -41,13 +43,14 @@ const CreateDisciplineModal = ({ isOpen, onClose, onSuccess, courseId }) => {
         setLoading(true);
         setErrors({});
         try {
-            await disciplineService.createDiscipline({
+            const payload = {
                 course_id: parseInt(courseId, 10),
                 name: formData.name,
                 description: formData.description,
-                hours: parseInt(formData.hours, 10) || 0,
-                slug: formData.slug
-            });
+                hours: parseInt(formData.hours, 10) || 0
+            };
+            if (formData.slug.trim()) payload.slug = formData.slug;
+            await disciplineService.createDiscipline(payload);
             onSuccess();
             onClose();
             setFormData({ name: '', description: '', hours: 0, slug: '' });

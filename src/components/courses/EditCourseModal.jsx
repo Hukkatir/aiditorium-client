@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { HiXMark } from 'react-icons/hi2';
 import { courseService } from '../../services/courseService';
 import { useToast } from '../../context/ToastContext';
-import { slugifyPreview } from '../../utils/slugUtils';
+import { getSlugValidationError, slugifyPreview } from '../../utils/slugUtils';
 
 const EditCourseModal = ({ isOpen, onClose, course, onSuccess }) => {
     const { showToast } = useToast();
@@ -36,8 +36,21 @@ const EditCourseModal = ({ isOpen, onClose, course, onSuccess }) => {
         }
     };
 
+    const validate = () => {
+        const err = {};
+        if (!formData.name.trim()) err.name = 'Название обязательно';
+        const slugError = getSlugValidationError(formData.slug);
+        if (slugError) err.slug = slugError;
+        return err;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const errs = validate();
+        if (Object.keys(errs).length > 0) {
+            setErrors(errs);
+            return;
+        }
         setLoading(true);
         setErrors({});
         try {
@@ -45,7 +58,7 @@ const EditCourseModal = ({ isOpen, onClose, course, onSuccess }) => {
             form.append('name', formData.name);
             form.append('description', formData.description);
             form.append('status', formData.status);
-            form.append('slug', formData.slug);
+            if (formData.slug.trim() || course?.slug) form.append('slug', formData.slug);
             if (backgroundFile) {
                 form.append('background_logo', backgroundFile);
             }
@@ -79,6 +92,7 @@ const EditCourseModal = ({ isOpen, onClose, course, onSuccess }) => {
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1">Название</label>
                             <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none" required />
+                            {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
                         </div>
 
                         <div>

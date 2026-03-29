@@ -1,6 +1,8 @@
-export const getCourseIdentifier = (course) => course?.slug || String(course?.id || '');
+import { getSafeSlug } from './slugUtils';
 
-export const getDisciplineIdentifier = (discipline) => discipline?.slug || String(discipline?.id || '');
+export const getCourseIdentifier = (course) => getSafeSlug(course?.slug) || String(course?.id || '');
+
+export const getDisciplineIdentifier = (discipline) => getSafeSlug(discipline?.slug) || String(discipline?.id || '');
 
 export const getTaskIdentifier = (task) => String(task?.task_number ?? task?.taskNumber ?? task?.id ?? '');
 

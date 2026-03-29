@@ -1,4 +1,6 @@
-﻿export const slugifyPreview = (value) => {
+export const SLUG_LETTERS_ERROR = 'slug должен содержать хотя бы одну букву';
+
+export const slugifyPreview = (value) => {
     if (!value) return '';
 
     const translitMap = {
@@ -18,4 +20,18 @@
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .replace(/-{2,}/g, '-');
+};
+
+export const slugHasLetters = (value) => /[a-z]/.test(slugifyPreview(value));
+
+export const getSlugValidationError = (value) => {
+    if (!String(value || '').trim()) return '';
+
+    return slugHasLetters(value) ? '' : SLUG_LETTERS_ERROR;
+};
+
+export const getSafeSlug = (value) => {
+    const slug = String(value || '').trim();
+
+    return slug && slugHasLetters(slug) ? slug : '';
 };

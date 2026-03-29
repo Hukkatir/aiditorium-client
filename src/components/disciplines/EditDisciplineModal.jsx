@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { HiXMark } from 'react-icons/hi2';
 import { useToast } from '../../context/ToastContext';
 import { disciplineService } from '../../services/disciplineService';
-import { slugifyPreview } from '../../utils/slugUtils';
+import { getSlugValidationError, slugifyPreview } from '../../utils/slugUtils';
 
 const EditDisciplineModal = ({ isOpen, onClose, onSuccess, discipline }) => {
     const { showToast } = useToast();
@@ -31,17 +31,31 @@ const EditDisciplineModal = ({ isOpen, onClose, onSuccess, discipline }) => {
         if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
     };
 
+    const validate = () => {
+        const err = {};
+        if (!formData.name.trim()) err.name = 'Название обязательно';
+        const slugError = getSlugValidationError(formData.slug);
+        if (slugError) err.slug = slugError;
+        return err;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const errs = validate();
+        if (Object.keys(errs).length > 0) {
+            setErrors(errs);
+            return;
+        }
         setLoading(true);
         setErrors({});
         try {
-            await disciplineService.updateDiscipline(discipline.id, {
+            const payload = {
                 name: formData.name,
                 description: formData.description,
-                hours: parseInt(formData.hours, 10) || 0,
-                slug: formData.slug
-            });
+                hours: parseInt(formData.hours, 10) || 0
+            };
+            if (formData.slug.trim() || discipline?.slug) payload.slug = formData.slug;
+            await disciplineService.updateDiscipline(discipline.id, payload);
             showToast('success', 'Дисциплина обновлена');
             onSuccess();
             onClose();
@@ -71,6 +85,7 @@ const EditDisciplineModal = ({ isOpen, onClose, onSuccess, discipline }) => {
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1">Название</label>
                             <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none" required />
+                            {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-1">Описание</label>
