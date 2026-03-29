@@ -245,7 +245,7 @@ const AvatarCropModal = ({ isOpen, imageUrl, fileName, processing, onClose, onCo
                             </div>
 
                             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-gray-400">
-                                <p>Поддерживаются JPG, PNG, GIF и WEBP.</p>
+                                <p>Поддерживаются JPG, PNG и WEBP.</p>
                                 <p className="mt-1">Если исходное фото не подходит по пропорциям, просто выберите нужную часть здесь.</p>
                             </div>
 
