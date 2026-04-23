@@ -1,6 +1,11 @@
 import apiClient from './apiClient';
 
 export const userService = {
+    async getUser(userId) {
+        const response = await apiClient.get(`/user/${userId}`);
+        return response.data;
+    },
+
     async updateProfile(userId, data) {
         const response = await apiClient.put(`/user/${userId}`, data);
         return response.data;

@@ -170,7 +170,6 @@ const AvatarCropModal = ({ isOpen, imageUrl, fileName, processing, onClose, onCo
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
-                onClick={() => !processing && onClose()}
             >
                 <motion.div
                     initial={{ scale: 0.96, opacity: 0 }}

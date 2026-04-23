@@ -13,3 +13,6 @@ export const buildDisciplinePath = (course, discipline) =>
 
 export const buildTaskPath = (course, discipline, task) =>
     `${buildDisciplinePath(course, discipline)}/task/${getTaskIdentifier(task)}`;
+
+export const buildTaskSubmissionsPath = (course, discipline, task) =>
+    `${buildTaskPath(course, discipline, task)}/submissions`;

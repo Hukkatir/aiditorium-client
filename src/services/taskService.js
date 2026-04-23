@@ -38,5 +38,37 @@ export const taskService = {
     async deleteTask(taskId) {
         const response = await apiClient.delete(`/task/${taskId}`);
         return response.data;
+    },
+
+    async submitTask(taskId, file, comment = '') {
+        const formData = new FormData();
+        formData.append('task_id', taskId);
+        formData.append('file', file);
+
+        if (comment.trim()) {
+            formData.append('comment', comment.trim());
+        }
+
+        const response = await apiClient.post('/task/submit', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        return response.data;
+    },
+
+    async unsubmitTask(taskId, fileId) {
+        const response = await apiClient.post('/task/unsubmit', {
+            task_id: taskId,
+            file_id: fileId
+        });
+        return response.data;
+    },
+
+    async getTaskSubmissions(taskId, perPage = 100) {
+        const response = await apiClient.post('/task/submissions', {
+            task_id: taskId,
+            per_page: perPage
+        });
+        return response.data;
     }
 };
