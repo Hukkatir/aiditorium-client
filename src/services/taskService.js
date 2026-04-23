@@ -14,9 +14,7 @@ export const taskService = {
 
     // Создать задание (multipart/form-data)
     async createTask(formData) {
-        const response = await apiClient.post('/task', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        const response = await apiClient.post('/task', formData);
         return response.data;
     },
 
@@ -28,9 +26,8 @@ export const taskService = {
 
     // Обновить задание
     async updateTask(taskId, formData) {
-        const response = await apiClient.put(`/task/${taskId}`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        formData.append('_method', 'PUT');
+        const response = await apiClient.post(`/task/${taskId}`, formData);
         return response.data;
     },
 

@@ -3,11 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     HiAcademicCap,
-    HiUserCircle,
     HiPlus,
     HiUserPlus,
     HiArrowRightOnRectangle,
     HiPencilSquare,
+    HiMiniRectangleStack,
     HiBars3,
     HiXMark
 } from 'react-icons/hi2';
@@ -125,6 +125,16 @@ const Navbar = ({ sidebarOpen, onToggleSidebar }) => {
                                                 <p className="text-sm text-gray-400 truncate">{user?.email}</p>
                                             </div>
                                             <div className="p-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setDropdownOpen(false);
+                                                        navigate('/my-tasks');
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-white/5 rounded-lg transition"
+                                                >
+                                                    <HiMiniRectangleStack className="w-4 h-4" />
+                                                    <span>Мои задания</span>
+                                                </button>
                                                 <button
                                                     onClick={() => {
                                                         setDropdownOpen(false);

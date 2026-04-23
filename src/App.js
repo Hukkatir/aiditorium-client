@@ -6,6 +6,8 @@ import Profile from './pages/Profile';
 import Courses from './pages/Courses';
 import CourseDetailPage from './pages/CourseDetailPage';
 import DisciplineDetailPage from './pages/DisciplineDetailPage';
+import FilePreviewPage from './pages/FilePreviewPage';
+import MyTasksPage from './pages/MyTasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
 import TaskSubmissionsPage from './pages/TaskSubmissionsPage';
 // Защищённый маршрут (без Layout – Layout уже внутри страниц)
@@ -52,6 +54,16 @@ function App() {
                 <Route path="/courses" element={
                     <ProtectedRoute>
                         <Courses />
+                    </ProtectedRoute>
+                } />
+                <Route path="/my-tasks" element={
+                    <ProtectedRoute>
+                        <MyTasksPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/file/:fileId/preview" element={
+                    <ProtectedRoute>
+                        <FilePreviewPage />
                     </ProtectedRoute>
                 } />
                 <Route path="/courses/:courseId" element={

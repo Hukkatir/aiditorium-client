@@ -12,9 +12,11 @@ import {
     HiLockClosed,
     HiLockOpen,
     HiMiniRectangleStack,
+    HiPaperClip,
     HiPencil,
     HiStar,
     HiTrash,
+    HiUserCircle,
     HiUserGroup
 } from 'react-icons/hi2';
 import CreateDisciplineModal from '../components/disciplines/CreateDisciplineModal';
@@ -29,6 +31,8 @@ import { disciplineService } from '../services/disciplineService';
 import apiClient from '../services/apiClient';
 import { taskService } from '../services/taskService';
 import { buildCoursePath, buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
+import { getTaskMaterials } from '../utils/fileUtils';
+import { getRichTextExcerpt } from '../utils/richText';
 
 const formatDate = (dateString) => {
     if (!dateString) {
@@ -395,7 +399,7 @@ const CourseDetailPage = () => {
                             {disciplines.length === 0 ? (
                                 <p className="text-gray-500">В этом курсе пока нет дисциплин</p>
                             ) : (
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                                     {disciplines.map((discipline) => (
                                         <div key={discipline.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-5 transition hover:border-purple-500">
                                             <div className="flex items-start justify-between gap-3">
@@ -439,22 +443,73 @@ const CourseDetailPage = () => {
                     {activeTab === 'tasks' && (
                         <motion.div key="tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                             <h2 className="mb-6 text-2xl font-semibold">Задания</h2>
+                            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-slate-300">
+                                <p className="max-w-2xl text-slate-400">
+                                    Все задания курса собраны в одной ленте: видно дисциплину, срок сдачи, баллы и материалы.
+                                </p>
+                                <div className="rounded-2xl border border-sky-400/15 bg-sky-400/10 px-4 py-2 text-sky-100">
+                                    Всего заданий: <span className="font-semibold">{tasks.length}</span>
+                                </div>
+                            </div>
                             {tasks.length === 0 ? (
                                 <p className="text-gray-500">В этом курсе пока нет заданий</p>
                             ) : (
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                                     {tasks.map((task) => {
                                         const discipline = disciplines.find((item) => item.id === task.discipline_id);
+                                        const materials = getTaskMaterials(task);
+                                        const taskSummary = getRichTextExcerpt(task.description, 140);
 
                                         return (
                                             <div
                                                 key={task.id}
-                                                className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.02] p-5 transition hover:border-purple-500"
+                                                className="group cursor-pointer overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-5 shadow-[0_22px_60px_rgba(15,23,42,0.22)] transition duration-200 hover:-translate-y-1 hover:border-sky-400/35 hover:shadow-[0_28px_80px_rgba(14,165,233,0.12)]"
                                                 onClick={() => discipline && navigate(buildTaskPath(course, discipline, task))}
                                             >
-                                                <h3 className="mb-1 text-lg font-bold">{task.name}</h3>
-                                                <p className="mb-3 line-clamp-2 text-sm text-gray-400">{task.description}</p>
-                                                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                                                <div className="mb-3 flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        {discipline && (
+                                                            <span className="mb-2 inline-flex items-center gap-2 rounded-full border border-sky-400/15 bg-sky-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-sky-200">
+                                                                <HiMiniRectangleStack className="h-3.5 w-3.5" />
+                                                                {discipline.name}
+                                                            </span>
+                                                        )}
+                                                        <h3 className="text-lg font-semibold text-white transition group-hover:text-sky-100">{task.name}</h3>
+                                                    </div>
+                                                    {task.scores !== undefined && (
+                                                        <div className="shrink-0 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-right">
+                                                            <div className="text-[10px] uppercase tracking-[0.18em] text-amber-100/70">Баллы</div>
+                                                            <div className="mt-1 flex items-center gap-1 text-sm font-semibold text-amber-100">
+                                                                <HiStar className="h-4 w-4" />
+                                                                {task.scores}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="mb-4 min-h-[72px] text-sm leading-6 text-slate-300">
+                                                    {taskSummary || 'Откройте задание, чтобы посмотреть полное описание и материалы.'}
+                                                </p>
+                                                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                                                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                                                            <HiClock className="h-3.5 w-3.5" />
+                                                            Срок сдачи
+                                                        </div>
+                                                        <div className="mt-2 text-sm font-medium text-slate-100">
+                                                            {task.deadline ? formatDate(task.deadline) : 'Без ограничения'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                                                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                                                            <HiPaperClip className="h-3.5 w-3.5" />
+                                                            Материалы
+                                                        </div>
+                                                        <div className="mt-2 text-sm font-medium text-slate-100">
+                                                            {materials.length > 0 ? `${materials.length} файл(ов)` : 'Файлов нет'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-3 border-t border-white/8 pt-4 text-xs text-gray-500">
                                                     {task.scores !== undefined && (
                                                         <span className="flex items-center gap-1">
                                                             <HiStar className="h-3 w-3 text-yellow-400" />
@@ -471,10 +526,10 @@ const CourseDetailPage = () => {
                                                         <HiCalendar className="h-3 w-3" />
                                                         Создано: {formatDate(task.created_at)}
                                                     </span>
-                                                    {discipline && (
+                                                    {materials.length > 0 && (
                                                         <span className="flex items-center gap-1">
-                                                            <HiMiniRectangleStack className="h-3 w-3" />
-                                                            {discipline.name}
+                                                            <HiPaperClip className="h-3 w-3" />
+                                                            {materials.length}
                                                         </span>
                                                     )}
                                                 </div>
@@ -492,12 +547,22 @@ const CourseDetailPage = () => {
                             {users.length === 0 ? (
                                 <p className="text-gray-500">В этом курсе пока нет участников</p>
                             ) : (
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                     {users.map((item) => (
-                                        <div key={item.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] p-3">
-                                            <div>
-                                                <p className="font-medium">{item.name}</p>
-                                                <p className="text-sm text-gray-400">{item.email}</p>
+                                        <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-600 to-blue-600">
+                                                    {item.avatar_url ? (
+                                                        <img src={item.avatar_url} alt="" className="h-full w-full object-cover" />
+                                                    ) : (
+                                                        <HiUserCircle className="h-8 w-8 text-white" />
+                                                    )}
+                                                </div>
+
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-medium text-white">{item.name}</p>
+                                                    <p className="truncate text-sm text-gray-400">{item.email}</p>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-4">
                                                 <span className="rounded-full bg-purple-600/20 px-2 py-1 text-xs text-purple-300">{getRoleLabel(item.pivot?.role)}</span>

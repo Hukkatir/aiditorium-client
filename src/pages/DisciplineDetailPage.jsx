@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
-import { HiCalendar, HiClock, HiPencil, HiStar, HiTrash } from 'react-icons/hi2';
+import { HiCalendar, HiClock, HiPaperClip, HiPencil, HiStar, HiTrash } from 'react-icons/hi2';
 import EditDisciplineModal from '../components/disciplines/EditDisciplineModal';
 import CreateTaskModal from '../components/tasks/CreateTaskModal';
 import ConfirmModal from '../components/layout/ConfirmModal';
@@ -11,6 +11,8 @@ import { useToast } from '../context/ToastContext';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
 import { taskService } from '../services/taskService';
+import { getTaskMaterials } from '../utils/fileUtils';
+import { getRichTextExcerpt } from '../utils/richText';
 import { buildCoursePath, buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
 
 const getCurrentCourseRole = (course, users, user) => {
@@ -63,6 +65,7 @@ const DisciplineDetailPage = () => {
             setCourse(courseObject);
             setTasks(tasksData.data || []);
             setCourseUsers(usersData.users || usersData.data || []);
+
             const canonicalPath = buildDisciplinePath(courseObject, disciplineObject);
             if (window.location.pathname !== canonicalPath) {
                 navigate(canonicalPath, { replace: true });
@@ -112,7 +115,13 @@ const DisciplineDetailPage = () => {
             <MainLayout>
                 <div className="py-20 text-center">
                     <p className="text-xl text-gray-400">Дисциплина не найдена</p>
-                    <button onClick={() => navigate('/courses')} className="mt-4 text-purple-400 transition hover:text-purple-300">← Назад</button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/courses')}
+                        className="mt-4 text-slate-300 transition hover:text-white"
+                    >
+                        ← Назад
+                    </button>
                 </div>
             </MainLayout>
         );
@@ -120,38 +129,58 @@ const DisciplineDetailPage = () => {
 
     return (
         <MainLayout>
-            <div className="mx-auto max-w-6xl">
-                <button onClick={() => navigate(buildCoursePath(courseRef))} className="mb-4 flex items-center gap-1 text-purple-400 transition hover:text-purple-300">← Назад к курсу</button>
+            <div className="mx-auto max-w-6xl space-y-6">
+                <button
+                    type="button"
+                    onClick={() => navigate(buildCoursePath(courseRef))}
+                    className="inline-flex items-center gap-2 text-slate-400 transition hover:text-white"
+                >
+                    ← Назад к курсу
+                </button>
 
-                <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold">{discipline.name}</h1>
-                        <p className="mt-1 text-gray-400">{discipline.description}</p>
-                        <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                            <span className="flex items-center gap-1">
-                                <HiClock className="h-4 w-4" />
+                <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_34%),rgba(255,255,255,0.03)] p-6 md:p-8">
+                    <div className="flex flex-wrap items-start justify-between gap-5">
+                        <div className="max-w-3xl">
+                            <div className="text-xs uppercase tracking-[0.24em] text-sky-200/70">Дисциплина</div>
+                            <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">{discipline.name}</h1>
+                            <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
+                                {discipline.description || 'Описание дисциплины пока не заполнено.'}
+                            </p>
+                            <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/[0.06] px-4 py-2 text-sm text-slate-300">
+                                <HiClock className="h-4 w-4 text-slate-400" />
                                 Часов: {discipline.hours || 0}
-                            </span>
+                            </div>
                         </div>
+
+                        {canManage && (
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditDiscipline(true)}
+                                    className="rounded-2xl bg-white/[0.06] p-3 text-white transition hover:bg-white/[0.1]"
+                                >
+                                    <HiPencil className="h-5 w-5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDeleteDisciplineConfirm(true)}
+                                    className="rounded-2xl bg-red-500/12 p-3 text-red-200 transition hover:bg-red-500/18"
+                                >
+                                    <HiTrash className="h-5 w-5" />
+                                </button>
+                            </div>
+                        )}
                     </div>
+                </section>
 
-                    {canManage && (
-                        <div className="flex gap-2">
-                            <button type="button" onClick={() => setShowEditDiscipline(true)} className="rounded-lg bg-white/5 p-2 transition hover:bg-white/10">
-                                <HiPencil className="h-5 w-5" />
-                            </button>
-                            <button type="button" onClick={() => setShowDeleteDisciplineConfirm(true)} className="rounded-lg bg-red-600/20 p-2 transition hover:bg-red-600/30">
-                                <HiTrash className="h-5 w-5 text-red-400" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
-                        <h2 className="text-2xl font-semibold">Задания</h2>
+                        <h2 className="text-2xl font-semibold text-white">Задания</h2>
+                        <p className="mt-2 text-sm text-slate-500">
+                            Более спокойные и информативные карточки: короткое описание, баллы, дедлайн и количество материалов.
+                        </p>
                         {isArchived && canManage && (
-                            <p className="mt-1 text-sm text-yellow-300">В архивном курсе нельзя создавать новые задания.</p>
+                            <p className="mt-2 text-sm text-yellow-300">В архивном курсе нельзя создавать новые задания.</p>
                         )}
                     </div>
 
@@ -160,42 +189,63 @@ const DisciplineDetailPage = () => {
                             type="button"
                             onClick={() => setShowCreateTask(true)}
                             disabled={isArchived}
-                            className="rounded-lg bg-purple-600 px-4 py-2 transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            + Создать задание
+                            Создать задание
                         </button>
                     )}
                 </div>
 
                 {tasks.length === 0 ? (
-                    <p className="text-gray-500">В этой дисциплине пока нет заданий</p>
+                    <div className="rounded-[30px] border border-dashed border-white/10 px-6 py-14 text-center text-slate-500">
+                        В этой дисциплине пока нет заданий.
+                    </div>
                 ) : (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {tasks.map((task) => (
-                            <motion.div
-                                key={task.id}
-                                whileHover={{ y: -4 }}
-                                className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.02] p-5 transition-all hover:border-purple-500"
-                                onClick={() => navigate(buildTaskPath(courseRef, discipline, task))}
-                            >
-                                <h3 className="mb-2 text-lg font-bold">{task.name}</h3>
-                                <p className="mb-3 line-clamp-2 text-sm text-gray-400">{task.description}</p>
-                                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                                    {task.scores !== undefined && (
-                                        <span className="flex items-center gap-1">
-                                            <HiStar className="h-3 w-3 text-yellow-400" />
-                                            {task.scores} баллов
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        {tasks.map((task) => {
+                            const materialsCount = getTaskMaterials(task).length;
+
+                            return (
+                                <motion.div
+                                    key={task.id}
+                                    whileHover={{ y: -4 }}
+                                    className="cursor-pointer rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.14),_transparent_34%),rgba(255,255,255,0.03)] p-5 transition-all hover:border-sky-400/35 hover:bg-white/[0.05]"
+                                    onClick={() => navigate(buildTaskPath(courseRef, discipline, task))}
+                                >
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <div className="text-xs uppercase tracking-[0.24em] text-sky-200/70">Задание #{task.task_number}</div>
+                                            <h3 className="mt-3 text-xl font-semibold text-white">{task.name}</h3>
+                                            <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-400">
+                                                {getRichTextExcerpt(task.description, 180) || 'Описание пока не заполнено.'}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right">
+                                            <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Максимум</div>
+                                            <div className="mt-1 text-lg font-semibold text-white">{Number(task.scores) || 100}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 flex flex-wrap gap-2 text-xs">
+                                        {task.deadline && (
+                                            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                                <HiCalendar className="h-3.5 w-3.5" />
+                                                Сдать до {new Date(task.deadline).toLocaleDateString()}
+                                            </span>
+                                        )}
+                                        <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                            <HiStar className="h-3.5 w-3.5 text-yellow-400" />
+                                            {Number(task.scores) || 100} баллов
                                         </span>
-                                    )}
-                                    {task.deadline && (
-                                        <span className="flex items-center gap-1">
-                                            <HiCalendar className="h-3 w-3" />
-                                            Срок сдачи: {new Date(task.deadline).toLocaleDateString()}
+                                        <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                            <HiPaperClip className="h-3.5 w-3.5" />
+                                            Материалов: {materialsCount}
                                         </span>
-                                    )}
-                                </div>
-                            </motion.div>
-                        ))}
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -219,7 +269,14 @@ const DisciplineDetailPage = () => {
                 courseId={discipline.course_id}
                 disciplineId={discipline.id}
             />
-            <ConfirmModal isOpen={showDeleteDisciplineConfirm} onClose={() => setShowDeleteDisciplineConfirm(false)} onConfirm={handleDeleteDiscipline} title="Удаление дисциплины" message={`Удалить дисциплину ${discipline.name}?`} confirmText="Удалить" />
+            <ConfirmModal
+                isOpen={showDeleteDisciplineConfirm}
+                onClose={() => setShowDeleteDisciplineConfirm(false)}
+                onConfirm={handleDeleteDiscipline}
+                title="Удаление дисциплины"
+                message={`Удалить дисциплину ${discipline.name}?`}
+                confirmText="Удалить"
+            />
         </MainLayout>
     );
 };

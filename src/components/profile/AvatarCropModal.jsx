@@ -169,7 +169,7 @@ const AvatarCropModal = ({ isOpen, imageUrl, fileName, processing, onClose, onCo
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
             >
                 <motion.div
                     initial={{ scale: 0.96, opacity: 0 }}
@@ -182,7 +182,8 @@ const AvatarCropModal = ({ isOpen, imageUrl, fileName, processing, onClose, onCo
                         <div>
                             <h2 className="text-2xl font-bold text-white">Обрезать аватар</h2>
                             <p className="mt-2 text-sm text-gray-400">
-                                Перетащите изображение и настройте масштаб. На сервер уйдёт квадратный аватар 512×512.
+                                Перетащите изображение и настройте масштаб. На сервер уйдет квадратный файл 512x512,
+                                который будет показываться как круглая аватарка.
                             </p>
                         </div>
                         <button
@@ -198,7 +199,7 @@ const AvatarCropModal = ({ isOpen, imageUrl, fileName, processing, onClose, onCo
                     <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
                         <div className="mx-auto">
                             <div
-                                className="relative h-[320px] w-[320px] select-none overflow-hidden rounded-[32px] bg-black/40 touch-none"
+                                className="relative h-[320px] w-[320px] touch-none select-none overflow-hidden rounded-[32px] bg-black/40"
                                 onPointerDown={handlePointerDown}
                                 onPointerMove={handlePointerMove}
                                 onPointerUp={handlePointerUp}
@@ -245,7 +246,8 @@ const AvatarCropModal = ({ isOpen, imageUrl, fileName, processing, onClose, onCo
 
                             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-gray-400">
                                 <p>Поддерживаются JPG, PNG и WEBP.</p>
-                                <p className="mt-1">Если исходное фото не подходит по пропорциям, просто выберите нужную часть здесь.</p>
+                                <p className="mt-1">После выбора можно обрезать изображение под круглую аватарку.</p>
+                                <p className="mt-1">Максимальный размер итогового файла: 3 МБ.</p>
                             </div>
 
                             {error && <p className="text-sm text-red-400">{error}</p>}

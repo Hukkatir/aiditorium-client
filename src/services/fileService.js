@@ -34,6 +34,21 @@ const triggerBrowserDownload = (blob, fileName) => {
 
 const buildFileBlob = (payload) => (payload instanceof Blob ? payload : new Blob([payload]));
 
+const getFileAsset = async (fileId, fallbackName = 'file') => {
+    const response = await apiClient.get(`/file/download/${fileId}`, {
+        responseType: 'blob'
+    });
+
+    const fileName = extractFileName(response.headers, fallbackName);
+    const blob = buildFileBlob(response.data);
+
+    return {
+        blob,
+        fileName,
+        contentType: blob.type || response.headers?.['content-type'] || ''
+    };
+};
+
 export const fileService = {
     async getMyFiles(params = {}) {
         const response = await apiClient.get('/file', { params });
@@ -41,23 +56,13 @@ export const fileService = {
     },
 
     async downloadFile(fileId, fallbackName = 'file') {
-        const response = await apiClient.get(`/file/download/${fileId}`, {
-            responseType: 'blob'
-        });
-
-        const fileName = extractFileName(response.headers, fallbackName);
-        const blob = buildFileBlob(response.data);
+        const { blob, fileName } = await getFileAsset(fileId, fallbackName);
 
         triggerBrowserDownload(blob, fileName);
     },
 
     async openFile(fileId, fallbackName = 'file') {
-        const response = await apiClient.get(`/file/download/${fileId}`, {
-            responseType: 'blob'
-        });
-
-        const fileName = extractFileName(response.headers, fallbackName);
-        const blob = buildFileBlob(response.data);
+        const { blob, fileName } = await getFileAsset(fileId, fallbackName);
         const objectUrl = window.URL.createObjectURL(blob);
         const openedWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
 
@@ -69,5 +74,16 @@ export const fileService = {
         setTimeout(() => {
             window.URL.revokeObjectURL(objectUrl);
         }, 60_000);
+    },
+
+    async getFilePreview(fileId, fallbackName = 'file') {
+        const { blob, fileName, contentType } = await getFileAsset(fileId, fallbackName);
+
+        return {
+            blob,
+            fileName,
+            contentType,
+            objectUrl: window.URL.createObjectURL(blob)
+        };
     }
 };

@@ -1,8 +1,24 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { HiXMark } from 'react-icons/hi2';
+import React, { useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { HiPaperClip, HiPlus, HiXMark } from 'react-icons/hi2';
+import RichTextEditor from '../editor/RichTextEditor';
 import { taskService } from '../../services/taskService';
 import { useToast } from '../../context/ToastContext';
+
+const mergeUniqueFiles = (previousFiles, nextFiles) => {
+    const seen = new Set(previousFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
+    const result = [...previousFiles];
+
+    nextFiles.forEach((file) => {
+        const key = `${file.name}-${file.size}-${file.lastModified}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            result.push(file);
+        }
+    });
+
+    return result;
+};
 
 const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId }) => {
     const { showToast } = useToast();
@@ -10,63 +26,109 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
         name: '',
         description: '',
         scores: '',
-        deadline: '',
+        deadline: ''
     });
-    const [attachment, setAttachment] = useState(null);
-    const [attachmentName, setAttachmentName] = useState('');
+    const [materials, setMaterials] = useState([]);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-        if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+    const selectedMaterialNames = useMemo(
+        () => materials.map((file, index) => ({ id: `${file.name}-${file.size}-${index}`, name: file.name })),
+        [materials]
+    );
+
+    const resetState = () => {
+        setFormData({
+            name: '',
+            description: '',
+            scores: '',
+            deadline: ''
+        });
+        setMaterials([]);
+        setErrors({});
     };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setAttachment(file);
-            setAttachmentName(file.name);
+    const handleClose = () => {
+        if (loading) {
+            return;
+        }
+
+        resetState();
+        onClose();
+    };
+
+    const handleChange = (event) => {
+        const { name, value } = event.target;
+        setFormData((previous) => ({ ...previous, [name]: value }));
+        if (errors[name]) {
+            setErrors((previous) => ({ ...previous, [name]: '' }));
         }
     };
 
-    const validate = () => {
-        const err = {};
-        if (!formData.name.trim()) err.name = 'Название обязательно';
-        return err;
+    const handleMaterialsChange = (event) => {
+        const nextFiles = Array.from(event.target.files || []);
+        event.target.value = '';
+
+        if (!nextFiles.length) {
+            return;
+        }
+
+        setMaterials((previous) => mergeUniqueFiles(previous, nextFiles));
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        const errs = validate();
-        if (Object.keys(errs).length > 0) {
-            setErrors(errs);
+    const handleRemoveMaterial = (targetIndex) => {
+        setMaterials((previous) => previous.filter((_, index) => index !== targetIndex));
+    };
+
+    const validate = () => {
+        const nextErrors = {};
+
+        if (!formData.name.trim()) {
+            nextErrors.name = 'РќР°Р·РІР°РЅРёРµ Р·Р°РґР°РЅРёСЏ РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ';
+        }
+
+        return nextErrors;
+    };
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
+
+        const nextErrors = validate();
+        if (Object.keys(nextErrors).length > 0) {
+            setErrors(nextErrors);
             return;
         }
 
         setLoading(true);
+
         try {
             const form = new FormData();
-            form.append('course_id', parseInt(courseId));
-            form.append('discipline_id', parseInt(disciplineId));
-            form.append('name', formData.name);
-            if (formData.description) form.append('description', formData.description);
-            if (formData.scores) form.append('scores', parseInt(formData.scores));
-            if (formData.deadline) form.append('deadline', formData.deadline); // формат YYYY-MM-DDTHH:mm
-            if (attachment) form.append('attachment', attachment);
+            form.append('course_id', String(parseInt(courseId, 10)));
+            form.append('discipline_id', String(parseInt(disciplineId, 10)));
+            form.append('name', formData.name.trim());
+
+            if (formData.description) {
+                form.append('description', formData.description);
+            }
+            if (formData.scores) {
+                form.append('scores', String(parseInt(formData.scores, 10)));
+            }
+            if (formData.deadline) {
+                form.append('deadline', formData.deadline);
+            }
+            materials.forEach((file) => {
+                form.append('attachments[]', file);
+            });
 
             await taskService.createTask(form);
-            showToast('success', 'Задание создано');
+            showToast('success', 'Р—Р°РґР°РЅРёРµ СЃРѕР·РґР°РЅРѕ');
+            resetState();
             onSuccess();
             onClose();
-            // Сброс формы
-            setFormData({ name: '', description: '', scores: '', deadline: '' });
-            setAttachment(null);
-            setAttachmentName('');
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.message || 'Ошибка создания задания');
+            const firstValidationError = Object.values(error.response?.data?.errors || {})?.[0]?.[0];
+            showToast('error', firstValidationError || error.response?.data?.message || 'РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ Р·Р°РґР°РЅРёСЏ');
         } finally {
             setLoading(false);
         }
@@ -80,97 +142,140 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+                onClick={handleClose}
             >
                 <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
+                    initial={{ scale: 0.98, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="bg-[#1A1A1C] rounded-2xl max-w-md w-full p-6 border border-white/10"
-                    onClick={e => e.stopPropagation()}
+                    exit={{ scale: 0.98, opacity: 0 }}
+                    className="mx-auto my-4 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-purple-500/12 bg-[radial-gradient(circle_at_top_right,_rgba(124,58,237,0.14),_transparent_30%),rgba(15,17,27,0.98)] p-5 shadow-[0_32px_120px_rgba(0,0,0,0.42)] md:p-6"
+                    onClick={(event) => event.stopPropagation()}
                 >
-                    <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-2xl font-bold text-white">Создать задание</h2>
-                        <button onClick={onClose} className="text-gray-400 hover:text-white">
-                            <HiXMark className="w-6 h-6" />
+                    <div className="mb-7 flex items-start justify-between gap-4">
+                        <div className="max-w-2xl">
+                            <h2 className="text-3xl font-semibold text-white">РЎРѕР·РґР°С‚СЊ Р·Р°РґР°РЅРёРµ</h2>
+                            <p className="mt-3 text-sm leading-7 text-slate-400">
+                                РћС„РѕСЂРјРёС‚Рµ Р·Р°РґР°РЅРёРµ РІ РїСЂРёРІС‹С‡РЅРѕР№ СЃС‚РёР»РёСЃС‚РёРєРµ РєСѓСЂСЃР°: РЅР°Р·РІР°РЅРёРµ, С‚РµРєСЃС‚ Рё РјР°С‚РµСЂРёР°Р»С‹. Р¤Р°Р№Р»С‹ РјРѕР¶РЅРѕ РґРѕР±Р°РІР»СЏС‚СЊ СЃСЂР°Р·Сѓ
+                                РЅРµСЃРєРѕР»СЊРєРѕ С€С‚СѓРє.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={handleClose}
+                            className="rounded-2xl p-2 text-slate-400 transition hover:bg-white/[0.05] hover:text-white"
+                        >
+                            <HiXMark className="h-6 w-6" />
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">
-                                Название <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none"
-                            />
-                            {errors.name && <p className="text-red-400 text-sm mt-1">{errors.name}</p>}
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),180px,220px]">
+                            <div>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                                    РќР°Р·РІР°РЅРёРµ <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    placeholder="РќР°РїСЂРёРјРµСЂ, РџСЂР°РєС‚РёС‡РµСЃРєР°СЏ СЂР°Р±РѕС‚Р° в„–1"
+                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                                {errors.name && <p className="mt-2 text-sm text-red-400">{errors.name}</p>}
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Р‘Р°Р»Р»С‹</label>
+                                <input
+                                    type="number"
+                                    name="scores"
+                                    value={formData.scores}
+                                    onChange={handleChange}
+                                    min="0"
+                                    placeholder="100"
+                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Р”РµРґР»Р°Р№РЅ</label>
+                                <input
+                                    type="datetime-local"
+                                    name="deadline"
+                                    value={formData.deadline}
+                                    onChange={handleChange}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500 [color-scheme:dark]"
+                                />
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Описание</label>
-                            <textarea
-                                name="description"
-                                rows="3"
-                                value={formData.description}
-                                onChange={handleChange}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none"
-                            />
-                        </div>
+                        <RichTextEditor
+                            id="create-task-description"
+                            label="РћРїРёСЃР°РЅРёРµ"
+                            value={formData.description}
+                            onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
+                            placeholder="РћРїРёС€РёС‚Рµ Р·Р°РґР°С‡Сѓ, РєСЂРёС‚РµСЂРёРё СЃРґР°С‡Рё Рё РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Рµ РїРѕСЏСЃРЅРµРЅРёСЏ РґР»СЏ СЃС‚СѓРґРµРЅС‚РѕРІ"
+                            minHeightClassName="min-h-[220px]"
+                        />
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Баллы</label>
-                            <input
-                                type="number"
-                                name="scores"
-                                value={formData.scores}
-                                onChange={handleChange}
-                                min="0"
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none"
-                            />
-                        </div>
+                        <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white">РњР°С‚РµСЂРёР°Р»С‹ Р·Р°РґР°РЅРёСЏ</h3>
+                                    <p className="mt-2 text-sm text-slate-400">
+                                        РњРѕР¶РЅРѕ РІС‹Р±СЂР°С‚СЊ СЃСЂР°Р·Сѓ РЅРµСЃРєРѕР»СЊРєРѕ С„Р°Р№Р»РѕРІ. Р’ СЃРїРёСЃРєРµ РЅРёР¶Рµ РїРѕРєР°Р·С‹РІР°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РёС… РЅР°Р·РІР°РЅРёСЏ.
+                                    </p>
+                                </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Дедлайн</label>
-                            <input
-                                type="datetime-local"
-                                name="deadline"
-                                value={formData.deadline}
-                                onChange={handleChange}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none [color-scheme:dark]"
-                            />
-                        </div>
+                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-purple-500/25 bg-purple-500/15 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/22">
+                                    <HiPlus className="h-4 w-4" />
+                                    Р”РѕР±Р°РІРёС‚СЊ С„Р°Р№Р»С‹
+                                    <input type="file" multiple onChange={handleMaterialsChange} className="hidden" />
+                                </label>
+                            </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Прикрепить файл</label>
-                            <input
-                                type="file"
-                                onChange={handleFileChange}
-                                className="w-full text-white file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-purple-600 file:text-white hover:file:bg-purple-700"
-                            />
-                            {attachmentName && (
-                                <p className="text-sm text-gray-400 mt-1">Выбран: {attachmentName}</p>
+                            {selectedMaterialNames.length > 0 ? (
+                                <div className="mt-4 space-y-2">
+                                    {selectedMaterialNames.map((item, index) => (
+                                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-200">
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                <HiPaperClip className="h-4 w-4 text-slate-400" />
+                                                <span className="truncate">{item.name}</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveMaterial(index)}
+                                                className="rounded-full p-0.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                                            >
+                                                <HiXMark className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="mt-4 rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+                                    РњР°С‚РµСЂРёР°Р»С‹ РїРѕРєР° РЅРµ РІС‹Р±СЂР°РЅС‹.
+                                </div>
                             )}
-                        </div>
+                        </section>
 
-                        <div className="flex gap-4 pt-4">
+                        <div className="flex flex-wrap justify-end gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={handleClose}
+                                className="rounded-2xl bg-white/[0.06] px-5 py-3 font-medium text-white transition hover:bg-white/[0.1]"
+                            >
+                                РћС‚РјРµРЅР°
+                            </button>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 rounded-xl font-bold transition disabled:opacity-50"
+                                className="rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                             >
-                                {loading ? 'Создание...' : 'Создать'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition"
-                            >
-                                Отмена
+                                {loading ? 'РЎРѕР·РґР°С‘Рј...' : 'РЎРѕР·РґР°С‚СЊ Р·Р°РґР°РЅРёРµ'}
                             </button>
                         </div>
                     </form>
