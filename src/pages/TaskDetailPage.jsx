@@ -31,7 +31,7 @@ import { buildDisciplinePath, buildTaskPath, buildTaskSubmissionsPath } from '..
 
 const formatDateTime = (dateString) => {
     if (!dateString) {
-        return 'вЂ”';
+        return '—';
     }
 
     return new Date(dateString).toLocaleString('ru-RU', {
@@ -60,11 +60,11 @@ const getSubmissionStatus = (deadline, latestSubmission) => {
 
     if (!latestSubmission) {
         return {
-            label: 'РќРµ СЃРґР°РЅРѕ',
+            label: 'Не сдано',
             badgeClassName: deadlineTimestamp && deadlineTimestamp < Date.now()
                 ? 'border-red-500/20 bg-red-500/15 text-red-200'
                 : 'border-white/10 bg-white/[0.06] text-slate-300',
-            hint: deadline ? `РЎСЂРѕРє СЃРґР°С‡Рё: ${formatDateTime(deadline)}` : 'Р Р°Р±РѕС‚Р° РµС‰С‘ РЅРµ РѕС‚РїСЂР°РІР»РµРЅР°'
+            hint: deadline ? `Срок сдачи: ${formatDateTime(deadline)}` : 'Работа еще не отправлена'
         };
     }
 
@@ -72,13 +72,13 @@ const getSubmissionStatus = (deadline, latestSubmission) => {
     const isLate = deadlineTimestamp && submittedAt > deadlineTimestamp;
 
     return isLate ? {
-        label: 'РЎРґР°РЅРѕ СЃ РѕРїРѕР·РґР°РЅРёРµРј',
+        label: 'Сдано с опозданием',
         badgeClassName: 'border-amber-500/20 bg-amber-500/15 text-amber-200',
-        hint: `РћС‚РїСЂР°РІР»РµРЅРѕ ${formatDateTime(latestSubmission.created_at)}`
+        hint: `Отправлено ${formatDateTime(latestSubmission.created_at)}`
     } : {
-        label: 'РЎРґР°РЅРѕ',
+        label: 'Сдано',
         badgeClassName: 'border-emerald-500/20 bg-emerald-500/15 text-emerald-200',
-        hint: `РћС‚РїСЂР°РІР»РµРЅРѕ ${formatDateTime(latestSubmission.created_at)}`
+        hint: `Отправлено ${formatDateTime(latestSubmission.created_at)}`
     };
 };
 
@@ -172,7 +172,7 @@ const TaskDetailPage = () => {
             setMyGrade(grade);
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РѕС‚РїСЂР°РІР»РµРЅРЅС‹Рµ СЂР°Р±РѕС‚С‹');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить отправленные работы');
         }
     }, [showToast]);
 
@@ -214,7 +214,7 @@ const TaskDetailPage = () => {
                 setTaskComments([]);
             } else {
                 console.error(error);
-                showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёРё');
+                showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить комментарии');
                 setTaskComments([]);
             }
         } finally {
@@ -276,7 +276,7 @@ const TaskDetailPage = () => {
         } catch (error) {
             console.error(error);
             setTask(null);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р·Р°РґР°РЅРёРµ');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить задание');
         } finally {
             setLoading(false);
         }
@@ -304,10 +304,10 @@ const TaskDetailPage = () => {
 
         try {
             await taskService.deleteTask(task.id);
-            showToast('success', 'Р—Р°РґР°РЅРёРµ СѓРґР°Р»РµРЅРѕ');
+            showToast('success', 'Задание удалено');
             navigate(disciplinePath);
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления');
         } finally {
             setShowDeleteConfirm(false);
         }
@@ -318,7 +318,7 @@ const TaskDetailPage = () => {
             await fileService.downloadFile(file.id, getDisplayFileName(file));
         } catch (error) {
             console.error(error);
-            showToast('error', 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРєР°С‡Р°С‚СЊ С„Р°Р№Р»');
+            showToast('error', 'Не удалось скачать файл');
         }
     };
 
@@ -327,13 +327,13 @@ const TaskDetailPage = () => {
             await fileService.downloadFile(file.id, getDisplayFileName(file));
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРєР°С‡Р°С‚СЊ С„Р°Р№Р»');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось скачать файл');
         }
     };
 
     const handleSubmitFile = async () => {
         if (!submitFile || !task || !course) {
-            showToast('error', 'Р’С‹Р±РµСЂРёС‚Рµ С„Р°Р№Р»');
+            showToast('error', 'Выберите файл');
             return;
         }
 
@@ -341,13 +341,13 @@ const TaskDetailPage = () => {
 
         try {
             await taskService.submitTask(task.id, submitFile);
-            showToast('success', 'Р Р°Р±РѕС‚Р° РѕС‚РїСЂР°РІР»РµРЅР°');
+            showToast('success', 'Работа отправлена');
             setShowSubmitModal(false);
             setSubmitFile(null);
             await refreshStudentAndComments();
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РћС€РёР±РєР° РѕС‚РїСЂР°РІРєРё');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка отправки');
         } finally {
             setSubmitting(false);
         }
@@ -362,11 +362,11 @@ const TaskDetailPage = () => {
 
         try {
             await taskService.unsubmitTask(task.id, file.id);
-            showToast('success', 'Р¤Р°Р№Р» СѓР±СЂР°РЅ РёР· РѕС‚РїСЂР°РІРєРё');
+            showToast('success', 'Файл убран из отправки');
             await refreshStudentAndComments();
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ СѓР±СЂР°С‚СЊ С„Р°Р№Р»');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось убрать файл');
         } finally {
             setRemovingSubmissionId(null);
         }
@@ -385,11 +385,11 @@ const TaskDetailPage = () => {
                 body
             });
 
-            showToast('success', 'РљРѕРјРјРµРЅС‚Р°СЂРёР№ РѕС‚РїСЂР°РІР»РµРЅ');
+            showToast('success', 'Комментарий отправлен');
             await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёР№');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
         }
     };
 
@@ -407,17 +407,17 @@ const TaskDetailPage = () => {
                 body
             });
 
-            showToast('success', 'РћС‚РІРµС‚ РѕС‚РїСЂР°РІР»РµРЅ');
+            showToast('success', 'Ответ отправлен');
             await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РѕС‚РІРµС‚');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
         }
     };
 
     const handleCreatePrivateComment = async (body) => {
         if (!task || !course || !latestSubmission) {
-            showToast('error', 'РЎРЅР°С‡Р°Р»Р° РїСЂРёРєСЂРµРїРёС‚Рµ РІС‹РїРѕР»РЅРµРЅРЅСѓСЋ СЂР°Р±РѕС‚Сѓ');
+            showToast('error', 'Сначала прикрепите выполненную работу');
             return;
         }
 
@@ -430,11 +430,11 @@ const TaskDetailPage = () => {
                 body
             });
 
-            showToast('success', 'Р›РёС‡РЅС‹Р№ РєРѕРјРјРµРЅС‚Р°СЂРёР№ РѕС‚РїСЂР°РІР»РµРЅ');
+            showToast('success', 'Личный комментарий отправлен');
             await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёР№');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
         }
     };
 
@@ -453,11 +453,11 @@ const TaskDetailPage = () => {
                 body
             });
 
-            showToast('success', 'РћС‚РІРµС‚ РѕС‚РїСЂР°РІР»РµРЅ');
+            showToast('success', 'Ответ отправлен');
             await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РѕС‚РІРµС‚');
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
         }
     };
 
@@ -475,14 +475,14 @@ const TaskDetailPage = () => {
         return (
             <MainLayout>
                 <div className="py-20 text-center">
-                    <p className="text-xl text-gray-400">Р—Р°РґР°РЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ</p>
+                    <p className="text-xl text-gray-400">Задание не найдено</p>
                     <button
                         type="button"
                         onClick={() => navigate('/courses')}
                         className="mt-4 inline-flex items-center gap-2 text-slate-300 transition hover:text-white"
                     >
                         <HiArrowLeft className="h-5 w-5" />
-                        Р’РµСЂРЅСѓС‚СЊСЃСЏ Рє РєСѓСЂСЃР°Рј
+                        Вернуться к курсам
                     </button>
                 </div>
             </MainLayout>
@@ -498,14 +498,14 @@ const TaskDetailPage = () => {
                     className="inline-flex items-center gap-2 text-slate-400 transition hover:text-white"
                 >
                     <HiArrowLeft className="h-5 w-5" />
-                    РќР°Р·Р°Рґ Рє РґРёСЃС†РёРїР»РёРЅРµ
+                    Назад к дисциплине
                 </button>
 
                 <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.22),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.14),_transparent_34%),rgba(255,255,255,0.03)] p-6 md:p-8">
                     <div className="flex flex-wrap items-start justify-between gap-5">
                         <div className="max-w-4xl">
                             <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.24em] text-purple-200/75">
-                                <span>Р—Р°РґР°РЅРёРµ #{task.task_number}</span>
+                                <span>Задание #{task.task_number}</span>
                                 {discipline?.name && (
                                     <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 normal-case tracking-normal text-slate-300">
                                         {discipline.name}
@@ -522,19 +522,19 @@ const TaskDetailPage = () => {
 
                             <div className="mt-4 flex flex-wrap gap-2 text-sm text-slate-300">
                                 <span className="rounded-full bg-white/[0.06] px-3 py-1.5">
-                                    Р‘Р°Р»Р»С‹: {!isTeacher && myGrade ? `${myGrade.grade}/${maxTaskScore}` : maxTaskScore}
+                                    Баллы: {!isTeacher && myGrade ? `${myGrade.grade}/${maxTaskScore}` : maxTaskScore}
                                 </span>
                                 <span className="rounded-full bg-white/[0.06] px-3 py-1.5">
-                                    РњР°С‚РµСЂРёР°Р»РѕРІ: {taskMaterials.length}
+                                    Материалов: {taskMaterials.length}
                                 </span>
                                 <span className="rounded-full bg-white/[0.06] px-3 py-1.5">
-                                    РљРѕРјРјРµРЅС‚Р°СЂРёРµРІ: {publicComments.length}
+                                    Комментариев: {publicComments.length}
                                 </span>
                             </div>
 
                             {task.deadline && (
                                 <p className="mt-4 text-sm leading-7 text-slate-400">
-                                    РЎСЂРѕРє СЃРґР°С‡Рё: {formatDateTime(task.deadline)}
+                                    Срок сдачи: {formatDateTime(task.deadline)}
                                 </p>
                             )}
                         </div>
@@ -548,7 +548,7 @@ const TaskDetailPage = () => {
                                         className="inline-flex items-center gap-2 rounded-2xl border border-purple-500/20 bg-purple-500/12 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/18"
                                     >
                                         <HiArrowTopRightOnSquare className="h-4 w-4" />
-                                        РџСЂРѕРІРµСЂРєР° СЂР°Р±РѕС‚
+                                        Проверка работ
                                     </button>
                                     <button
                                         type="button"
@@ -556,7 +556,7 @@ const TaskDetailPage = () => {
                                         className="inline-flex items-center gap-2 rounded-2xl bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.1]"
                                     >
                                         <HiPencil className="h-4 w-4" />
-                                        Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ
+                                        Редактировать
                                     </button>
                                     <button
                                         type="button"
@@ -564,7 +564,7 @@ const TaskDetailPage = () => {
                                         className="inline-flex items-center gap-2 rounded-2xl bg-red-500/12 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/18"
                                     >
                                         <HiTrash className="h-4 w-4" />
-                                        РЈРґР°Р»РёС‚СЊ
+                                        Удалить
                                     </button>
                                 </>
                             )}
@@ -576,32 +576,32 @@ const TaskDetailPage = () => {
                     <div className="space-y-6">
                         <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
                             <div className="mb-4 flex items-center justify-between gap-3">
-                                <h2 className="text-xl font-semibold text-white">РћРїРёСЃР°РЅРёРµ Р·Р°РґР°РЅРёСЏ</h2>
+                                <h2 className="text-xl font-semibold text-white">Описание задания</h2>
                                 {taskMaterials.length > 0 && (
                                     <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs text-slate-300">
-                                        РњР°С‚РµСЂРёР°Р»РѕРІ: {taskMaterials.length}
+                                        Материалов: {taskMaterials.length}
                                     </span>
                                 )}
                             </div>
 
                             <RichTextContent
                                 value={task.description}
-                                fallback="РћРїРёСЃР°РЅРёРµ РїРѕРєР° РЅРµ Р·Р°РїРѕР»РЅРµРЅРѕ."
+                                fallback="Описание пока не заполнено."
                                 className="text-slate-300"
                             />
                         </section>
 
                         <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
                             <div className="mb-4">
-                                <h2 className="text-xl font-semibold text-white">РњР°С‚РµСЂРёР°Р»С‹</h2>
+                                <h2 className="text-xl font-semibold text-white">Материалы</h2>
                                 <p className="mt-2 text-sm text-slate-500">
-                                    РџСЂРё РЅР°Р¶Р°С‚РёРё С„Р°Р№Р» РѕС‚РєСЂРѕРµС‚СЃСЏ РЅР° РѕС‚РґРµР»СЊРЅРѕР№ СЃС‚СЂР°РЅРёС†Рµ РїСЂРµРґРїСЂРѕСЃРјРѕС‚СЂР°.
+                                    Нажмите на файл, чтобы открыть его на отдельной странице предпросмотра.
                                 </p>
                             </div>
 
                             <FileTileGrid
                                 files={taskMaterials}
-                                emptyMessage="РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ РїРѕРєР° РЅРµ РґРѕР±Р°РІРёР» РјР°С‚РµСЂРёР°Р»С‹ Рє СЌС‚РѕРјСѓ Р·Р°РґР°РЅРёСЋ."
+                                emptyMessage="Преподаватель пока не добавил материалы к этому заданию."
                                 onDownload={handleMaterialDownload}
                             />
                         </section>
@@ -610,7 +610,7 @@ const TaskDetailPage = () => {
                     <div className="space-y-6">
                         <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                             <div className="border-b border-white/10 pb-4">
-                                <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-500">РЎРѕР·РґР°Р»</div>
+                                <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-500">Создал</div>
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-600 to-blue-600">
                                         {creator?.avatar_url ? (
@@ -620,7 +620,7 @@ const TaskDetailPage = () => {
                                         )}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="truncate font-medium text-white">{creator?.name || 'РќРµРёР·РІРµСЃС‚РЅРѕ'}</p>
+                                        <p className="truncate font-medium text-white">{creator?.name || 'Неизвестно'}</p>
                                         <p className="text-xs text-slate-500">{formatDateTime(task.created_at)}</p>
                                     </div>
                                 </div>
@@ -628,7 +628,7 @@ const TaskDetailPage = () => {
 
                             {!isTeacher && submissionStatus && (
                                 <div className="border-b border-white/10 py-4">
-                                    <div className="mb-2 text-sm text-slate-400">РЎС‚Р°С‚СѓСЃ</div>
+                                    <div className="mb-2 text-sm text-slate-400">Статус</div>
                                     <div className={`inline-flex rounded-full border px-3 py-1.5 text-sm font-medium ${submissionStatus.badgeClassName}`}>
                                         {submissionStatus.label}
                                     </div>
@@ -637,7 +637,7 @@ const TaskDetailPage = () => {
                             )}
 
                             <div className="flex items-center justify-between border-b border-white/10 py-4">
-                                <span className="text-slate-400">{!isTeacher && myGrade ? 'РњРѕСЏ РѕС†РµРЅРєР°' : 'РњР°РєСЃРёРјСѓРј Р±Р°Р»Р»РѕРІ'}</span>
+                                <span className="text-slate-400">{!isTeacher && myGrade ? 'Моя оценка' : 'Максимум баллов'}</span>
                                 <span className="flex items-center gap-2 font-semibold text-white">
                                     <HiStar className="h-4 w-4 text-yellow-400" />
                                     {!isTeacher && myGrade ? `${myGrade.grade}/${maxTaskScore}` : maxTaskScore}
@@ -645,12 +645,12 @@ const TaskDetailPage = () => {
                             </div>
 
                             <div className="flex items-center justify-between border-b border-white/10 py-4">
-                                <span className="text-slate-400">РЎСЂРѕРє СЃРґР°С‡Рё</span>
-                                <span className="text-right text-sm text-white">{task.deadline ? formatDateTime(task.deadline) : 'РќРµ СѓРєР°Р·Р°РЅ'}</span>
+                                <span className="text-slate-400">Срок сдачи</span>
+                                <span className="text-right text-sm text-white">{task.deadline ? formatDateTime(task.deadline) : 'Не указан'}</span>
                             </div>
 
                             <div className="flex items-center justify-between py-4">
-                                <span className="text-slate-400">РњР°С‚РµСЂРёР°Р»РѕРІ</span>
+                                <span className="text-slate-400">Материалов</span>
                                 <span className="text-sm font-medium text-white">{taskMaterials.length}</span>
                             </div>
                         </section>
@@ -659,9 +659,9 @@ const TaskDetailPage = () => {
                             <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                                 <div className="flex flex-wrap items-start justify-between gap-4">
                                     <div>
-                                        <h2 className="text-xl font-semibold text-white">РЎРґР°С‡Р° СЂР°Р±РѕС‚С‹</h2>
+                                        <h2 className="text-xl font-semibold text-white">Сдача работы</h2>
                                         <p className="mt-2 text-sm text-slate-500">
-                                            Р—РґРµСЃСЊ РІРёРґРЅС‹ РІСЃРµ РІР°С€Рё РѕС‚РїСЂР°РІР»РµРЅРЅС‹Рµ РІРµСЂСЃРёРё.
+                                            Здесь видны все отправленные версии вашей работы.
                                         </p>
                                     </div>
 
@@ -670,15 +670,15 @@ const TaskDetailPage = () => {
                                         onClick={() => setShowSubmitModal(true)}
                                         className="rounded-2xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500"
                                     >
-                                        РџСЂРёРєСЂРµРїРёС‚СЊ С„Р°Р№Р»
+                                        Прикрепить файл
                                     </button>
                                 </div>
 
                                 {myGrade && (
                                     <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                                        РўРµРєСѓС‰Р°СЏ РѕС†РµРЅРєР°: <span className="font-semibold">{myGrade.grade}/{maxTaskScore}</span>
+                                        Текущая оценка: <span className="font-semibold">{myGrade.grade}/{maxTaskScore}</span>
                                         {myGrade.graded_at && (
-                                            <span className="ml-2 text-emerald-200/70">РѕР±РЅРѕРІР»РµРЅРѕ {formatDateTime(myGrade.graded_at)}</span>
+                                            <span className="ml-2 text-emerald-200/70">обновлено {formatDateTime(myGrade.graded_at)}</span>
                                         )}
                                     </div>
                                 )}
@@ -686,14 +686,14 @@ const TaskDetailPage = () => {
                                 <div className="mt-4">
                                     <FileTileGrid
                                         files={ownSubmissions}
-                                        emptyMessage="Р’С‹ РµС‰Рµ РЅРµ РѕС‚РїСЂР°РІР»СЏР»Рё С„Р°Р№Р»С‹ РїРѕ СЌС‚РѕРјСѓ Р·Р°РґР°РЅРёСЋ."
+                                        emptyMessage="Вы еще не отправляли файлы по этому заданию."
                                         onDownload={handleSubmissionDownload}
                                         onRemove={(file) => handleRemoveSubmission(file)}
                                     />
                                 </div>
 
                                 {removingSubmissionId && (
-                                    <p className="mt-3 text-sm text-slate-500">РЈР±РёСЂР°РµРј РІС‹Р±СЂР°РЅРЅС‹Р№ С„Р°Р№Р» РёР· РѕС‚РїСЂР°РІРєРё...</p>
+                                    <p className="mt-3 text-sm text-slate-500">Убираем выбранный файл из отправки...</p>
                                 )}
                             </section>
                         )}
@@ -701,25 +701,25 @@ const TaskDetailPage = () => {
                         {!isTeacher && (
                             latestSubmission ? (
                                 <CommentThreadList
-                                    title="Р›РёС‡РЅС‹Рµ РєРѕРјРјРµРЅС‚Р°СЂРёРё"
-                                    description="Р’РёРґРЅС‹ С‚РѕР»СЊРєРѕ РІР°Рј Рё РїСЂРµРїРѕРґР°РІР°С‚РµР»СЋ."
+                                    title="Личные комментарии"
+                                    description="Эти сообщения видны только вам и преподавателю."
                                     comments={privateComments}
                                     currentUserId={user?.id}
                                     onCreate={handleCreatePrivateComment}
                                     onReply={handleReplyToPrivateComment}
-                                    emptyMessage="Р›РёС‡РЅР°СЏ РїРµСЂРµРїРёСЃРєР° РїРѕ РІР°С€РµР№ СЂР°Р±РѕС‚Рµ РїРѕРєР° РЅРµ РЅР°С‡Р°Р»Р°СЃСЊ."
-                                    createPlaceholder="РќР°РїРёС€РёС‚Рµ Р»РёС‡РЅС‹Р№ РєРѕРјРјРµРЅС‚Р°СЂРёР№..."
-                                    createLabel="РћС‚РїСЂР°РІРёС‚СЊ"
+                                    emptyMessage="Личная переписка по вашей работе пока не началась."
+                                    createPlaceholder="Напишите личный комментарий..."
+                                    createLabel="Отправить"
                                     loading={commentsLoading}
                                     variant="private"
-                                    scopeLabel="РўРѕР»СЊРєРѕ РІС‹ Рё РїСЂРµРїРѕРґР°РІР°С‚РµР»СЊ"
+                                    scopeLabel="Только вы и преподаватель"
                                     composerMode="toggle"
                                     composerPosition="bottom"
-                                    composerTriggerLabel="Р”РѕР±Р°РІРёС‚СЊ Р»РёС‡РЅС‹Р№ РєРѕРјРјРµРЅС‚Р°СЂРёР№"
+                                    composerTriggerLabel="Добавить личный комментарий"
                                 />
                             ) : (
                                 <section className="rounded-[28px] border border-dashed border-white/10 px-6 py-10 text-center text-slate-500">
-                                    РџСЂРёРєСЂРµРїРёС‚Рµ СЂР°Р±РѕС‚Сѓ, С‡С‚РѕР±С‹ РѕС‚РєСЂС‹С‚СЊ Р»РёС‡РЅСѓСЋ РїРµСЂРµРїРёСЃРєСѓ СЃ РїСЂРµРїРѕРґР°РІР°С‚РµР»РµРј.
+                                    Прикрепите работу, чтобы открыть личные комментарии с преподавателем.
                                 </section>
                             )
                         )}
@@ -727,21 +727,21 @@ const TaskDetailPage = () => {
                 </div>
 
                 <CommentThreadList
-                    title="РљРѕРјРјРµРЅС‚Р°СЂРёРё"
-                    description="Р’РёРґРЅС‹ РІСЃРµРј СѓС‡Р°СЃС‚РЅРёРєР°Рј РєСѓСЂСЃР°."
+                    title="Комментарии"
+                    description="Этот блок виден всем участникам курса."
                     comments={publicComments}
                     currentUserId={user?.id}
                     onCreate={handleCreatePublicComment}
                     onReply={handleReplyToPublicComment}
-                    emptyMessage="РџРѕРєР° РЅРёРєС‚Рѕ РЅРµ РѕСЃС‚Р°РІРёР» РєРѕРјРјРµРЅС‚Р°СЂРёР№ РїРѕ СЌС‚РѕРјСѓ Р·Р°РґР°РЅРёСЋ."
-                    createPlaceholder="РќР°РїРёС€РёС‚Рµ РєРѕРјРјРµРЅС‚Р°СЂРёР№ РїРѕ Р·Р°РґР°РЅРёСЋ..."
-                    createLabel="РћС‚РїСЂР°РІРёС‚СЊ"
+                    emptyMessage="Пока никто не оставил комментарий по этому заданию."
+                    createPlaceholder="Напишите комментарий по заданию..."
+                    createLabel="Отправить"
                     loading={commentsLoading}
                     variant="public"
-                    scopeLabel="Р’РёРґРЅРѕ РІСЃРµРј"
+                    scopeLabel="Видно всем"
                     composerMode="toggle"
                     composerPosition="bottom"
-                    composerTriggerLabel="Р”РѕР±Р°РІРёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёР№"
+                    composerTriggerLabel="Добавить комментарий"
                 />
             </div>
 
@@ -761,24 +761,27 @@ const TaskDetailPage = () => {
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
                 onConfirm={handleDelete}
-                title="РЈРґР°Р»РµРЅРёРµ Р·Р°РґР°РЅРёСЏ"
-                message="Р’С‹ СѓРІРµСЂРµРЅС‹? Р­С‚Рѕ РґРµР№СЃС‚РІРёРµ РЅРµРѕР±СЂР°С‚РёРјРѕ."
-                confirmText="РЈРґР°Р»РёС‚СЊ"
+                title="Удаление задания"
+                message="Вы уверены? Это действие необратимо."
+                confirmText="Удалить"
             />
 
             {showSubmitModal && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 backdrop-blur-sm" onClick={() => {
-                    if (!submitting) {
-                        setShowSubmitModal(false);
-                        setSubmitFile(null);
-                    }
-                }}>
+                <div
+                    className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
+                    onClick={() => {
+                        if (!submitting) {
+                            setShowSubmitModal(false);
+                            setSubmitFile(null);
+                        }
+                    }}
+                >
                     <div
                         className="mx-auto my-6 w-full max-w-lg rounded-[30px] border border-purple-500/12 bg-[radial-gradient(circle_at_top_right,_rgba(124,58,237,0.14),_transparent_32%),rgba(15,17,27,0.98)] p-6 shadow-[0_28px_100px_rgba(0,0,0,0.4)]"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="flex items-center justify-between gap-4">
-                            <h2 className="text-2xl font-semibold text-white">РџСЂРёРєСЂРµРїРёС‚СЊ СЂР°Р±РѕС‚Сѓ</h2>
+                            <h2 className="text-2xl font-semibold text-white">Прикрепить работу</h2>
                             <button
                                 type="button"
                                 onClick={() => {
@@ -792,13 +795,13 @@ const TaskDetailPage = () => {
                         </div>
 
                         <p className="mt-3 text-sm leading-7 text-slate-400">
-                            Р¤Р°Р№Р» Р±СѓРґРµС‚ РѕС‚РїСЂР°РІР»РµРЅ РєР°Рє РЅРѕРІР°СЏ РІРµСЂСЃРёСЏ РІР°С€РµР№ СЂР°Р±РѕС‚С‹.
+                            Файл будет отправлен как новая версия вашей работы.
                         </p>
 
                         <div className="mt-5 rounded-[26px] border border-dashed border-white/10 bg-white/[0.03] p-5">
                             <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-purple-500/25 bg-purple-500/15 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/22">
                                 <HiPaperClip className="h-4 w-4" />
-                                Р’С‹Р±СЂР°С‚СЊ С„Р°Р№Р»
+                                Выбрать файл
                                 <input
                                     type="file"
                                     onChange={(event) => setSubmitFile(event.target.files?.[0] || null)}
@@ -811,7 +814,7 @@ const TaskDetailPage = () => {
                                     <span className="font-medium">{submitFile.name}</span>
                                 </div>
                             ) : (
-                                <p className="mt-4 text-sm text-slate-500">Р¤Р°Р№Р» РїРѕРєР° РЅРµ РІС‹Р±СЂР°РЅ.</p>
+                                <p className="mt-4 text-sm text-slate-500">Файл пока не выбран.</p>
                             )}
                         </div>
 
@@ -824,7 +827,7 @@ const TaskDetailPage = () => {
                                 }}
                                 className="rounded-2xl bg-white/[0.06] px-5 py-3 font-medium text-white transition hover:bg-white/[0.1]"
                             >
-                                РћС‚РјРµРЅР°
+                                Отмена
                             </button>
                             <button
                                 type="button"
@@ -832,7 +835,7 @@ const TaskDetailPage = () => {
                                 disabled={submitting || !submitFile}
                                 className="rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                             >
-                                {submitting ? 'РћС‚РїСЂР°РІР»СЏРµРј...' : 'РћС‚РїСЂР°РІРёС‚СЊ СЂР°Р±РѕС‚Сѓ'}
+                                {submitting ? 'Отправляем...' : 'Отправить работу'}
                             </button>
                         </div>
                     </div>

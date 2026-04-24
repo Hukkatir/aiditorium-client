@@ -658,6 +658,9 @@ const TaskSubmissionsPage = () => {
                                     createLabel="Отправить комментарий"
                                     variant="private"
                                     scopeLabel="Только преподаватель и студент"
+                                    composerMode="toggle"
+                                    composerPosition="bottom"
+                                    composerTriggerLabel="Добавить комментарий"
                                 />
                             </div>
                         )}

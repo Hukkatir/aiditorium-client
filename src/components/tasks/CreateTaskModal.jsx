@@ -60,6 +60,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
     const handleChange = (event) => {
         const { name, value } = event.target;
         setFormData((previous) => ({ ...previous, [name]: value }));
+
         if (errors[name]) {
             setErrors((previous) => ({ ...previous, [name]: '' }));
         }
@@ -84,7 +85,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
         const nextErrors = {};
 
         if (!formData.name.trim()) {
-            nextErrors.name = 'РќР°Р·РІР°РЅРёРµ Р·Р°РґР°РЅРёСЏ РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ';
+            nextErrors.name = 'Название задания обязательно';
         }
 
         return nextErrors;
@@ -116,19 +117,20 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
             if (formData.deadline) {
                 form.append('deadline', formData.deadline);
             }
+
             materials.forEach((file) => {
                 form.append('attachments[]', file);
             });
 
             await taskService.createTask(form);
-            showToast('success', 'Р—Р°РґР°РЅРёРµ СЃРѕР·РґР°РЅРѕ');
+            showToast('success', 'Задание создано');
             resetState();
             onSuccess();
             onClose();
         } catch (error) {
             console.error(error);
             const firstValidationError = Object.values(error.response?.data?.errors || {})?.[0]?.[0];
-            showToast('error', firstValidationError || error.response?.data?.message || 'РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ Р·Р°РґР°РЅРёСЏ');
+            showToast('error', firstValidationError || error.response?.data?.message || 'Ошибка создания задания');
         } finally {
             setLoading(false);
         }
@@ -154,10 +156,10 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                 >
                     <div className="mb-7 flex items-start justify-between gap-4">
                         <div className="max-w-2xl">
-                            <h2 className="text-3xl font-semibold text-white">РЎРѕР·РґР°С‚СЊ Р·Р°РґР°РЅРёРµ</h2>
+                            <h2 className="text-3xl font-semibold text-white">Создать задание</h2>
                             <p className="mt-3 text-sm leading-7 text-slate-400">
-                                РћС„РѕСЂРјРёС‚Рµ Р·Р°РґР°РЅРёРµ РІ РїСЂРёРІС‹С‡РЅРѕР№ СЃС‚РёР»РёСЃС‚РёРєРµ РєСѓСЂСЃР°: РЅР°Р·РІР°РЅРёРµ, С‚РµРєСЃС‚ Рё РјР°С‚РµСЂРёР°Р»С‹. Р¤Р°Р№Р»С‹ РјРѕР¶РЅРѕ РґРѕР±Р°РІР»СЏС‚СЊ СЃСЂР°Р·Сѓ
-                                РЅРµСЃРєРѕР»СЊРєРѕ С€С‚СѓРє.
+                                Заполните название, описание и при необходимости добавьте материалы к заданию.
+                                Файлы можно выбрать сразу несколько.
                             </p>
                         </div>
 
@@ -174,21 +176,21 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),180px,220px]">
                             <div>
                                 <label className="mb-2 block text-sm font-semibold text-slate-300">
-                                    РќР°Р·РІР°РЅРёРµ <span className="text-red-400">*</span>
+                                    Название <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     name="name"
                                     value={formData.name}
                                     onChange={handleChange}
-                                    placeholder="РќР°РїСЂРёРјРµСЂ, РџСЂР°РєС‚РёС‡РµСЃРєР°СЏ СЂР°Р±РѕС‚Р° в„–1"
+                                    placeholder="Например, Практическая работа №1"
                                     className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500"
                                 />
                                 {errors.name && <p className="mt-2 text-sm text-red-400">{errors.name}</p>}
                             </div>
 
                             <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-300">Р‘Р°Р»Р»С‹</label>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Баллы</label>
                                 <input
                                     type="number"
                                     name="scores"
@@ -201,7 +203,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                             </div>
 
                             <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-300">Р”РµРґР»Р°Р№РЅ</label>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Дедлайн</label>
                                 <input
                                     type="datetime-local"
                                     name="deadline"
@@ -214,25 +216,25 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
 
                         <RichTextEditor
                             id="create-task-description"
-                            label="РћРїРёСЃР°РЅРёРµ"
+                            label="Описание"
                             value={formData.description}
                             onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
-                            placeholder="РћРїРёС€РёС‚Рµ Р·Р°РґР°С‡Сѓ, РєСЂРёС‚РµСЂРёРё СЃРґР°С‡Рё Рё РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Рµ РїРѕСЏСЃРЅРµРЅРёСЏ РґР»СЏ СЃС‚СѓРґРµРЅС‚РѕРІ"
+                            placeholder="Опишите задачу, критерии сдачи и дополнительные пояснения для студентов"
                             minHeightClassName="min-h-[220px]"
                         />
 
                         <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                             <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-white">РњР°С‚РµСЂРёР°Р»С‹ Р·Р°РґР°РЅРёСЏ</h3>
+                                    <h3 className="text-lg font-semibold text-white">Материалы задания</h3>
                                     <p className="mt-2 text-sm text-slate-400">
-                                        РњРѕР¶РЅРѕ РІС‹Р±СЂР°С‚СЊ СЃСЂР°Р·Сѓ РЅРµСЃРєРѕР»СЊРєРѕ С„Р°Р№Р»РѕРІ. Р’ СЃРїРёСЃРєРµ РЅРёР¶Рµ РїРѕРєР°Р·С‹РІР°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РёС… РЅР°Р·РІР°РЅРёСЏ.
+                                        В списке ниже показываются только названия выбранных файлов.
                                     </p>
                                 </div>
 
                                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-purple-500/25 bg-purple-500/15 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/22">
                                     <HiPlus className="h-4 w-4" />
-                                    Р”РѕР±Р°РІРёС‚СЊ С„Р°Р№Р»С‹
+                                    Добавить файлы
                                     <input type="file" multiple onChange={handleMaterialsChange} className="hidden" />
                                 </label>
                             </div>
@@ -257,7 +259,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                                 </div>
                             ) : (
                                 <div className="mt-4 rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
-                                    РњР°С‚РµСЂРёР°Р»С‹ РїРѕРєР° РЅРµ РІС‹Р±СЂР°РЅС‹.
+                                    Материалы пока не выбраны.
                                 </div>
                             )}
                         </section>
@@ -268,14 +270,14 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                                 onClick={handleClose}
                                 className="rounded-2xl bg-white/[0.06] px-5 py-3 font-medium text-white transition hover:bg-white/[0.1]"
                             >
-                                РћС‚РјРµРЅР°
+                                Отмена
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
                                 className="rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                             >
-                                {loading ? 'РЎРѕР·РґР°С‘Рј...' : 'РЎРѕР·РґР°С‚СЊ Р·Р°РґР°РЅРёРµ'}
+                                {loading ? 'Создаём...' : 'Создать задание'}
                             </button>
                         </div>
                     </form>

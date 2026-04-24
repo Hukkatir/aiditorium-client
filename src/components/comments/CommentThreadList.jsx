@@ -4,7 +4,7 @@ import CommentComposer from './CommentComposer';
 
 const formatCommentDate = (dateString) => {
     if (!dateString) {
-        return 'вЂ”';
+        return '—';
     }
 
     return new Date(dateString).toLocaleString('ru-RU', {
@@ -56,12 +56,12 @@ const CommentItem = ({ comment, currentUserId, onReply, replyEnabled, styles }) 
     return (
         <div className={`rounded-2xl border p-4 ${styles.card}`}>
             <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-white">{comment.user?.name || 'РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ'}</span>
+                <span className="font-medium text-white">{comment.user?.name || 'Пользователь'}</span>
                 {comment.user_id === currentUserId && (
-                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">Р’С‹</span>
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">Вы</span>
                 )}
                 <span className="text-xs text-slate-500">{formatCommentDate(comment.created_at)}</span>
-                {comment.is_edited && <span className="text-xs text-slate-500">РёР·РјРµРЅРµРЅРѕ</span>}
+                {comment.is_edited && <span className="text-xs text-slate-500">изменено</span>}
             </div>
 
             <p className="mt-2.5 whitespace-pre-wrap text-sm leading-6 text-slate-300">{comment.body}</p>
@@ -74,14 +74,14 @@ const CommentItem = ({ comment, currentUserId, onReply, replyEnabled, styles }) 
                             onClick={() => setIsReplyOpen(true)}
                             className="text-sm text-slate-400 transition hover:text-white"
                         >
-                            РћС‚РІРµС‚РёС‚СЊ
+                            Ответить
                         </button>
                     ) : (
                         <div className={`rounded-2xl border p-3 ${styles.composer}`}>
                             <CommentComposer
                                 compact
-                                placeholder="РќР°РїРёС€РёС‚Рµ РѕС‚РІРµС‚..."
-                                submitLabel="РћС‚РїСЂР°РІРёС‚СЊ"
+                                placeholder="Напишите ответ..."
+                                submitLabel="Отправить"
                                 onSubmit={async (body) => {
                                     await onReply(comment, body);
                                     setIsReplyOpen(false);
@@ -97,9 +97,9 @@ const CommentItem = ({ comment, currentUserId, onReply, replyEnabled, styles }) 
                     {replies.map((reply) => (
                         <div key={reply.id} className={`rounded-2xl border p-3 ${styles.reply}`}>
                             <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-medium text-white">{reply.user?.name || 'РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ'}</span>
+                                <span className="font-medium text-white">{reply.user?.name || 'Пользователь'}</span>
                                 {reply.user_id === currentUserId && (
-                                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">Р’С‹</span>
+                                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">Вы</span>
                                 )}
                                 <span className="text-xs text-slate-500">{formatCommentDate(reply.created_at)}</span>
                             </div>
@@ -129,7 +129,7 @@ const CommentThreadList = ({
     scopeLabel = '',
     composerMode = 'always',
     composerPosition = 'top',
-    composerTriggerLabel = 'Р”РѕР±Р°РІРёС‚СЊ РєРѕРјРјРµРЅС‚Р°СЂРёР№'
+    composerTriggerLabel = 'Добавить комментарий'
 }) => {
     const sortedComments = useMemo(
         () => [...comments].sort((left, right) => new Date(left.created_at) - new Date(right.created_at)),
@@ -147,13 +147,13 @@ const CommentThreadList = ({
             isComposerOpen ? (
                 <div className={`rounded-2xl border p-4 ${styles.composer}`}>
                     <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">РќРѕРІС‹Р№ РєРѕРјРјРµРЅС‚Р°СЂРёР№</p>
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Новый комментарий</p>
                         <button
                             type="button"
                             onClick={() => setIsComposerOpen(false)}
                             className="text-sm text-slate-400 transition hover:text-white"
                         >
-                            РЎРєСЂС‹С‚СЊ
+                            Скрыть
                         </button>
                     </div>
                     <CommentComposer
@@ -178,7 +178,7 @@ const CommentThreadList = ({
             )
         ) : (
             <div className={`rounded-2xl border p-4 ${styles.composer}`}>
-                <p className="mb-3 text-xs uppercase tracking-[0.2em] text-slate-500">РќРѕРІРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ</p>
+                <p className="mb-3 text-xs uppercase tracking-[0.2em] text-slate-500">Новое сообщение</p>
                 <CommentComposer
                     placeholder={createPlaceholder}
                     submitLabel={createLabel}
@@ -190,7 +190,7 @@ const CommentThreadList = ({
     ) : null;
 
     const commentsBlock = loading ? (
-        <div className="py-8 text-center text-sm text-slate-500">Р—Р°РіСЂСѓР¶Р°РµРј РєРѕРјРјРµРЅС‚Р°СЂРёРё...</div>
+        <div className="py-8 text-center text-sm text-slate-500">Загружаем комментарии...</div>
     ) : sortedComments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
             {emptyMessage}

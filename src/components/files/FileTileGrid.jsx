@@ -16,7 +16,7 @@ import {
     HiTrash
 } from 'react-icons/hi2';
 import { buildFilePreviewPath } from '../../utils/routeUtils';
-import { getDisplayFileName, getFileExtension, getFileKind, getFileTypeLabel } from '../../utils/fileUtils';
+import { getDisplayFileName, getFileExtension, getFileKind } from '../../utils/fileUtils';
 
 const FILE_KIND_META = {
     image: { icon: HiPhoto, iconClass: 'bg-fuchsia-500/12 text-fuchsia-200' },
@@ -54,8 +54,6 @@ const FileTileGrid = ({
                 const Icon = meta.icon;
                 const fileName = getDisplayFileName(file);
                 const extension = getFileExtension(fileName);
-                const fileTypeLabel = getFileTypeLabel(file);
-
                 return (
                     <div key={file.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-2.5">
                         <Link
@@ -70,14 +68,13 @@ const FileTileGrid = ({
 
                             <div className="min-w-0 flex-1">
                                 <div className="truncate text-sm font-medium text-white">{fileName}</div>
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                    <span>{fileTypeLabel}</span>
-                                    {extension && (
+                                {extension && (
+                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                                         <span className="rounded-full bg-white/10 px-2 py-0.5 uppercase tracking-[0.14em] text-slate-300">
                                             {extension}
                                         </span>
-                                    )}
-                                </div>
+                                    </div>
+                                )}
                             </div>
 
                             <HiArrowTopRightOnSquare className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:text-white" />
@@ -92,7 +89,7 @@ const FileTileGrid = ({
                                         className="inline-flex items-center gap-2 rounded-2xl bg-white/8 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/14"
                                     >
                                         <HiArrowDownTray className="h-4 w-4" />
-                                        РЎРєР°С‡Р°С‚СЊ
+                                        Скачать
                                     </button>
                                 )}
                                 {onRemove && (
@@ -102,7 +99,7 @@ const FileTileGrid = ({
                                         className="inline-flex items-center gap-2 rounded-2xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/16"
                                     >
                                         <HiTrash className="h-4 w-4" />
-                                        РЈР±СЂР°С‚СЊ
+                                        Убрать
                                     </button>
                                 )}
                             </div>

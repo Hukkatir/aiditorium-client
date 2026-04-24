@@ -67,6 +67,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
     const handleChange = (event) => {
         const { name, value } = event.target;
         setFormData((previous) => ({ ...previous, [name]: value }));
+
         if (errors[name]) {
             setErrors((previous) => ({ ...previous, [name]: '' }));
         }
@@ -95,7 +96,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
         const nextErrors = {};
 
         if (!formData.name.trim()) {
-            nextErrors.name = 'РќР°Р·РІР°РЅРёРµ Р·Р°РґР°РЅРёСЏ РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ';
+            nextErrors.name = 'Название задания обязательно';
         }
 
         return nextErrors;
@@ -125,21 +126,23 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
             if (formData.deadline) {
                 form.append('deadline', formData.deadline);
             }
+
             newMaterials.forEach((file) => {
                 form.append('attachments[]', file);
             });
+
             removedAttachmentIds.forEach((fileId) => {
                 form.append('removed_attachment_ids[]', String(fileId));
             });
 
             await taskService.updateTask(task.id, form);
-            showToast('success', 'Р—Р°РґР°РЅРёРµ РѕР±РЅРѕРІР»РµРЅРѕ');
+            showToast('success', 'Задание обновлено');
             onSuccess();
             onClose();
         } catch (error) {
             console.error(error);
             const firstValidationError = Object.values(error.response?.data?.errors || {})?.[0]?.[0];
-            showToast('error', firstValidationError || error.response?.data?.message || 'РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ Р·Р°РґР°РЅРёСЏ');
+            showToast('error', firstValidationError || error.response?.data?.message || 'Ошибка обновления задания');
         } finally {
             setLoading(false);
         }
@@ -165,10 +168,9 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                 >
                     <div className="mb-7 flex items-start justify-between gap-4">
                         <div className="max-w-2xl">
-                            <h2 className="text-3xl font-semibold text-white">Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ Р·Р°РґР°РЅРёРµ</h2>
+                            <h2 className="text-3xl font-semibold text-white">Редактировать задание</h2>
                             <p className="mt-3 text-sm leading-7 text-slate-400">
-                                РћР±РЅРѕРІРёС‚Рµ С‚РµРєСЃС‚ Рё РјР°С‚РµСЂРёР°Р»С‹ Р±РµР· Р»РѕРјР°РЅРѕР№ РІРµСЂСЃС‚РєРё: РІ РјРѕРґР°Р»РєРµ РѕСЃС‚Р°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РІР°Р¶РЅС‹Рµ РїРѕР»СЏ, Р° РЅРѕРІС‹Рµ С„Р°Р№Р»С‹ РјРѕР¶РЅРѕ
-                                РґРѕР±Р°РІРёС‚СЊ СЃСЂР°Р·Сѓ РЅРµСЃРєРѕР»СЊРєРѕР№ РїРѕРґР±РѕСЂРєРѕР№.
+                                Обновите текст задания и материалы. Новые файлы можно добавить сразу несколько.
                             </p>
                         </div>
 
@@ -185,7 +187,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),180px,220px]">
                             <div>
                                 <label className="mb-2 block text-sm font-semibold text-slate-300">
-                                    РќР°Р·РІР°РЅРёРµ <span className="text-red-400">*</span>
+                                    Название <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="text"
@@ -198,7 +200,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                             </div>
 
                             <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-300">Р‘Р°Р»Р»С‹</label>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Баллы</label>
                                 <input
                                     type="number"
                                     name="scores"
@@ -210,7 +212,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                             </div>
 
                             <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-300">Р”РµРґР»Р°Р№РЅ</label>
+                                <label className="mb-2 block text-sm font-semibold text-slate-300">Дедлайн</label>
                                 <input
                                     type="datetime-local"
                                     name="deadline"
@@ -223,25 +225,25 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
 
                         <RichTextEditor
                             id="edit-task-description"
-                            label="РћРїРёСЃР°РЅРёРµ"
+                            label="Описание"
                             value={formData.description}
                             onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
-                            placeholder="РћРїРёС€РёС‚Рµ Р·Р°РґР°С‡Сѓ, РєСЂРёС‚РµСЂРёРё Рё РѕР¶РёРґР°РµРјС‹Р№ С„РѕСЂРјР°С‚ СЃРґР°С‡Рё"
+                            placeholder="Опишите задачу, критерии и ожидаемый формат сдачи"
                             minHeightClassName="min-h-[220px]"
                         />
 
                         <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                             <div>
-                                <h3 className="text-lg font-semibold text-white">РўРµРєСѓС‰РёРµ РјР°С‚РµСЂРёР°Р»С‹</h3>
+                                <h3 className="text-lg font-semibold text-white">Текущие материалы</h3>
                                 <p className="mt-2 text-sm text-slate-400">
-                                    Р•СЃР»Рё С„Р°Р№Р» Р±РѕР»СЊС€Рµ РЅРµ РЅСѓР¶РµРЅ, РїСЂРѕСЃС‚Рѕ СѓР±РµСЂРёС‚Рµ РµРіРѕ РёР· СЃРїРёСЃРєР°.
+                                    Если файл больше не нужен, уберите его из списка.
                                 </p>
                             </div>
 
                             <div className="mt-4">
                                 <FileTileGrid
                                     files={existingMaterials}
-                                    emptyMessage="РЎРµР№С‡Р°СЃ Сѓ Р·Р°РґР°РЅРёСЏ РЅРµС‚ РјР°С‚РµСЂРёР°Р»РѕРІ."
+                                    emptyMessage="Сейчас у задания нет материалов."
                                     onRemove={handleRemoveExistingMaterial}
                                 />
                             </div>
@@ -250,15 +252,15 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                         <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
                             <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-white">Р”РѕР±Р°РІРёС‚СЊ РЅРѕРІС‹Рµ РјР°С‚РµСЂРёР°Р»С‹</h3>
+                                    <h3 className="text-lg font-semibold text-white">Добавить новые материалы</h3>
                                     <p className="mt-2 text-sm text-slate-400">
-                                        РџРѕСЃР»Рµ СЃРѕС…СЂР°РЅРµРЅРёСЏ РЅРѕРІС‹Рµ С„Р°Р№Р»С‹ СЃСЂР°Р·Сѓ РїРѕСЏРІСЏС‚СЃСЏ Сѓ СЃС‚СѓРґРµРЅС‚РѕРІ.
+                                        После сохранения новые файлы сразу появятся у студентов.
                                     </p>
                                 </div>
 
                                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-purple-500/25 bg-purple-500/15 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/22">
                                     <HiPlus className="h-4 w-4" />
-                                    Р’С‹Р±СЂР°С‚СЊ С„Р°Р№Р»С‹
+                                    Выбрать файлы
                                     <input type="file" multiple onChange={handleNewMaterialsChange} className="hidden" />
                                 </label>
                             </div>
@@ -283,7 +285,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                 </div>
                             ) : (
                                 <div className="mt-4 rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
-                                    РќРѕРІС‹Рµ РјР°С‚РµСЂРёР°Р»С‹ РїРѕРєР° РЅРµ РІС‹Р±СЂР°РЅС‹.
+                                    Новые материалы пока не выбраны.
                                 </div>
                             )}
                         </section>
@@ -294,14 +296,14 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                 onClick={handleClose}
                                 className="rounded-2xl bg-white/[0.06] px-5 py-3 font-medium text-white transition hover:bg-white/[0.1]"
                             >
-                                РћС‚РјРµРЅР°
+                                Отмена
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
                                 className="rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                             >
-                                {loading ? 'РЎРѕС…СЂР°РЅСЏРµРј...' : 'РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ'}
+                                {loading ? 'Сохраняем...' : 'Сохранить изменения'}
                             </button>
                         </div>
                     </form>
