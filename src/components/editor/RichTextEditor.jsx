@@ -93,13 +93,13 @@ const RichTextEditor = ({
     return (
         <div>
             {label && (
-                <label htmlFor={id} className="mb-2 block text-sm font-semibold text-slate-300">
+                <label htmlFor={id} className="mb-2 block text-sm font-medium text-gray-400">
                     {label}
                 </label>
             )}
 
-            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#111522] shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
-                <div className="flex flex-wrap gap-2 border-b border-white/10 bg-white/[0.04] p-3">
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                <div className="flex flex-wrap gap-2 border-b border-white/10 bg-black/10 p-3">
                     {TOOLBAR_ACTIONS.map((action) => {
                         const Icon = action.icon;
                         const isActive = Boolean(activeCommands[action.command]);
@@ -110,10 +110,10 @@ const RichTextEditor = ({
                                 type="button"
                                 onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => handleToolbarAction(action.command)}
-                                className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                                className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition ${
                                     isActive
-                                        ? 'bg-purple-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.32)]'
-                                        : 'bg-white/[0.06] text-slate-300 hover:bg-white/[0.1] hover:text-white'
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white'
                                 }`}
                             >
                                 <Icon className="h-4 w-4" />
@@ -125,7 +125,7 @@ const RichTextEditor = ({
 
                 <div className={`relative ${minHeightClassName}`}>
                     {!plainText && (
-                        <div className="pointer-events-none absolute inset-x-0 top-0 px-5 py-4 text-slate-500">
+                        <div className="pointer-events-none absolute inset-x-0 top-0 px-4 py-4 text-gray-500">
                             {placeholder}
                         </div>
                     )}
@@ -137,7 +137,7 @@ const RichTextEditor = ({
                         suppressContentEditableWarning
                         onInput={emitChange}
                         onPaste={handlePaste}
-                        className={`relative z-10 w-full px-5 py-4 text-base leading-7 text-white outline-none [&_p]:mb-4 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through ${minHeightClassName}`}
+                        className={`relative z-10 w-full px-4 py-4 text-base leading-7 text-white outline-none [&_p]:mb-4 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through ${minHeightClassName}`}
                     />
                 </div>
             </div>

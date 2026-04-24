@@ -411,23 +411,23 @@ const TaskSubmissionsPage = () => {
                     Назад к заданию
                 </button>
 
-                <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(124,58,237,0.22),_transparent_34%),rgba(255,255,255,0.03)] p-6 md:p-8">
+                <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-5">
                         <div className="max-w-4xl">
-                            <div className="text-xs uppercase tracking-[0.24em] text-purple-200/70">
+                            <div className="text-[11px] uppercase tracking-[0.18em] text-purple-300">
                                 Проверка работ • Задание #{task.task_number}
                             </div>
-                            <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">{task.name}</h1>
+                            <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">{task.name}</h1>
                             <div className="mt-4 max-w-3xl">
                                 <RichTextContent
                                     value={task.description}
                                     fallback="Описание задания не заполнено."
-                                    className="text-slate-400"
+                                    className="text-gray-400"
                                 />
                             </div>
                         </div>
 
-                        <div className="rounded-[28px] border border-white/10 bg-black/20 p-4 text-sm text-slate-300">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
                             <div className="flex items-center gap-2">
                                 <HiCalendar className="h-4 w-4 text-slate-500" />
                                 <span>Срок сдачи: {task.deadline ? formatDateTime(task.deadline) : 'не указан'}</span>
@@ -444,12 +444,12 @@ const TaskSubmissionsPage = () => {
                 </section>
 
                 {groupedSubmissions.length === 0 ? (
-                    <div className="rounded-[30px] border border-dashed border-white/10 px-6 py-16 text-center text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-white/10 px-6 py-16 text-center text-slate-500">
                         Пока никто не сдал работу по этому заданию.
                     </div>
                 ) : (
                     <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
-                        <section className="self-start rounded-[30px] border border-white/10 bg-white/[0.02] p-5 xl:sticky xl:top-6">
+                        <section className="self-start rounded-2xl border border-white/10 bg-white/[0.03] p-5 xl:sticky xl:top-6">
                             <div className="flex items-center justify-between gap-3">
                                 <h2 className="text-lg font-semibold text-white">Студенты</h2>
                                 <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs text-slate-300">
@@ -457,7 +457,7 @@ const TaskSubmissionsPage = () => {
                                 </span>
                             </div>
 
-                            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                                 <label className="flex items-center gap-3 text-sm text-slate-300" htmlFor="student-search">
                                     <HiMagnifyingGlass className="h-4 w-4 text-slate-500" />
                                     <input
@@ -483,7 +483,7 @@ const TaskSubmissionsPage = () => {
 
                             <div className="mt-5 space-y-3">
                                 {filteredGroups.length === 0 && (
-                                    <div className="rounded-3xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-slate-500">
+                                    <div className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-slate-500">
                                         По этому запросу ничего не найдено.
                                     </div>
                                 )}
@@ -502,10 +502,10 @@ const TaskSubmissionsPage = () => {
                                                     setSelectedStudentId(group.userId);
                                                 });
                                             }}
-                                            className={`w-full rounded-[26px] border p-4 text-left transition ${
+                                            className={`w-full rounded-xl border p-4 text-left transition ${
                                                 isActive
-                                                    ? 'border-purple-400/35 bg-purple-500/[0.08] shadow-[0_0_0_1px_rgba(168,85,247,0.18)]'
-                                                    : 'border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]'
+                                                    ? 'border-purple-400/30 bg-purple-500/10'
+                                                    : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]'
                                             }`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
@@ -538,10 +538,10 @@ const TaskSubmissionsPage = () => {
 
                         {selectedGroup && (
                             <div className="space-y-6">
-                                <section className="rounded-[30px] border border-white/10 bg-white/[0.02] p-6">
+                                <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
                                     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),320px]">
                                         <div className="flex items-start gap-4">
-                                            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-600 to-blue-600">
+                                            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-600 to-purple-500">
                                                 {selectedGroup.user?.avatar_url ? (
                                                     <img src={selectedGroup.user.avatar_url} alt="" className="h-full w-full object-cover" />
                                                 ) : (
@@ -566,7 +566,7 @@ const TaskSubmissionsPage = () => {
                                             </div>
                                         </div>
 
-                                        <div className="rounded-[26px] border border-white/10 bg-black/20 p-4">
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                             <label className="block text-sm font-medium text-slate-300" htmlFor={`grade-${selectedGroup.userId}`}>
                                                 Оценка за задание
                                             </label>
@@ -588,13 +588,13 @@ const TaskSubmissionsPage = () => {
                                                             [selectedGroup.userId]: nextValue
                                                         }));
                                                     }}
-                                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
                                                 />
                                                 <button
                                                     type="button"
                                                     onClick={() => handleSaveGrade(selectedGroup)}
                                                     disabled={savingGradeFor === selectedGroup.userId}
-                                                    className="rounded-2xl bg-purple-600 px-4 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                                                    className="rounded-xl bg-purple-600 px-4 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                                                 >
                                                     {savingGradeFor === selectedGroup.userId ? '...' : 'Сохранить'}
                                                 </button>
@@ -610,7 +610,7 @@ const TaskSubmissionsPage = () => {
                                 </section>
 
                                 {taskMaterials.length > 0 && (
-                                    <section className="rounded-[30px] border border-white/10 bg-white/[0.02] p-6">
+                                    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
                                         <div className="mb-4">
                                             <h2 className="text-xl font-semibold text-white">Материалы задания</h2>
                                             <p className="mt-2 text-sm text-slate-500">
@@ -626,7 +626,7 @@ const TaskSubmissionsPage = () => {
                                     </section>
                                 )}
 
-                                <section className="rounded-[30px] border border-white/10 bg-white/[0.02] p-6">
+                                <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
                                     <div className="mb-4 flex items-center justify-between gap-3">
                                         <div>
                                             <h2 className="text-xl font-semibold text-white">Версии работы</h2>

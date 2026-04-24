@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { HiCalendar, HiClock, HiPaperClip, HiPencil, HiStar, HiTrash } from 'react-icons/hi2';
 import EditDisciplineModal from '../components/disciplines/EditDisciplineModal';
 import CreateTaskModal from '../components/tasks/CreateTaskModal';
+import EditTaskModal from '../components/tasks/EditTaskModal';
+import ActionMenu from '../components/layout/ActionMenu';
 import ConfirmModal from '../components/layout/ConfirmModal';
 import MainLayout from '../components/layout/MainLayout';
 import { useAuth } from '../context/AuthContext';
@@ -40,7 +42,10 @@ const DisciplineDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [showCreateTask, setShowCreateTask] = useState(false);
     const [showEditDiscipline, setShowEditDiscipline] = useState(false);
+    const [showEditTask, setShowEditTask] = useState(false);
     const [showDeleteDisciplineConfirm, setShowDeleteDisciplineConfirm] = useState(false);
+    const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState(false);
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const currentRole = useMemo(() => getCurrentCourseRole(course, courseUsers, user), [course, courseUsers, user]);
     const canManage = currentRole === 'teacher';
@@ -100,6 +105,23 @@ const DisciplineDetailPage = () => {
         }
     };
 
+    const handleDeleteTask = async () => {
+        if (!selectedTask) {
+            return;
+        }
+
+        try {
+            await taskService.deleteTask(selectedTask.id);
+            showToast('success', 'Задание удалено');
+            setSelectedTask(null);
+            await fetchData();
+        } catch (error) {
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления задания');
+        } finally {
+            setShowDeleteTaskConfirm(false);
+        }
+    };
+
     if (loading) {
         return (
             <MainLayout>
@@ -153,20 +175,22 @@ const DisciplineDetailPage = () => {
                         </div>
 
                         {canManage && (
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button
                                     type="button"
                                     onClick={() => setShowEditDiscipline(true)}
-                                    className="rounded-2xl bg-white/[0.06] p-3 text-white transition hover:bg-white/[0.1]"
+                                    className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/10"
                                 >
-                                    <HiPencil className="h-5 w-5" />
+                                    <HiPencil className="h-4 w-4" />
+                                    Редактировать
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setShowDeleteDisciplineConfirm(true)}
-                                    className="rounded-2xl bg-red-500/12 p-3 text-red-200 transition hover:bg-red-500/18"
+                                    className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
                                 >
-                                    <HiTrash className="h-5 w-5" />
+                                    <HiTrash className="h-4 w-4" />
+                                    Удалить
                                 </button>
                             </div>
                         )}
@@ -221,9 +245,37 @@ const DisciplineDetailPage = () => {
                                             </p>
                                         </div>
 
-                                        <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right">
-                                            <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Максимум</div>
-                                            <div className="mt-1 text-lg font-semibold text-white">{Number(task.scores) || 100}</div>
+                                        <div className="flex items-start gap-2">
+                                            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right">
+                                                <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Максимум</div>
+                                                <div className="mt-1 text-lg font-semibold text-white">{Number(task.scores) || 100}</div>
+                                            </div>
+                                            {canManage && (
+                                                <ActionMenu
+                                                    showLabel
+                                                    buttonLabel="Действия"
+                                                    buttonClassName="border border-white/10 bg-white/5"
+                                                    items={[
+                                                        {
+                                                            label: 'Редактировать задание',
+                                                            icon: HiPencil,
+                                                            onClick: () => {
+                                                                setSelectedTask(task);
+                                                                setShowEditTask(true);
+                                                            }
+                                                        },
+                                                        {
+                                                            label: 'Удалить задание',
+                                                            icon: HiTrash,
+                                                            danger: true,
+                                                            onClick: () => {
+                                                                setSelectedTask(task);
+                                                                setShowDeleteTaskConfirm(true);
+                                                            }
+                                                        }
+                                                    ]}
+                                                />
+                                            )}
                                         </div>
                                     </div>
 
@@ -269,12 +321,36 @@ const DisciplineDetailPage = () => {
                 courseId={discipline.course_id}
                 disciplineId={discipline.id}
             />
+            <EditTaskModal
+                isOpen={showEditTask}
+                onClose={() => {
+                    setShowEditTask(false);
+                    setSelectedTask(null);
+                }}
+                onSuccess={() => {
+                    setShowEditTask(false);
+                    setSelectedTask(null);
+                    fetchData();
+                }}
+                task={selectedTask}
+            />
             <ConfirmModal
                 isOpen={showDeleteDisciplineConfirm}
                 onClose={() => setShowDeleteDisciplineConfirm(false)}
                 onConfirm={handleDeleteDiscipline}
                 title="Удаление дисциплины"
                 message={`Удалить дисциплину ${discipline.name}?`}
+                confirmText="Удалить"
+            />
+            <ConfirmModal
+                isOpen={showDeleteTaskConfirm}
+                onClose={() => {
+                    setShowDeleteTaskConfirm(false);
+                    setSelectedTask(null);
+                }}
+                onConfirm={handleDeleteTask}
+                title="Удаление задания"
+                message={`Удалить задание ${selectedTask?.name || ''}?`}
                 confirmText="Удалить"
             />
         </MainLayout>

@@ -19,28 +19,28 @@ const formatCommentDate = (dateString) => {
 const VARIANT_STYLES = {
     default: {
         section: 'border-white/10 bg-white/[0.03]',
-        icon: 'bg-white/[0.06] text-slate-300',
+        icon: 'text-slate-500',
         composer: 'border-white/10 bg-white/[0.03]',
-        card: 'border-white/10 bg-black/15',
-        reply: 'border-white/10 bg-black/20',
+        card: 'border-white/10 bg-white/[0.03]',
+        reply: 'border-white/10 bg-white/[0.04]',
         scope: 'bg-white/[0.06] text-slate-300',
         trigger: 'border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]'
     },
     public: {
         section: 'border-white/10 bg-white/[0.03]',
-        icon: 'bg-purple-500/14 text-purple-100',
-        composer: 'border-purple-500/20 bg-purple-500/[0.06]',
-        card: 'border-white/10 bg-black/15',
-        reply: 'border-white/10 bg-black/20',
-        scope: 'bg-purple-500/14 text-purple-100',
+        icon: 'text-purple-300',
+        composer: 'border-white/10 bg-white/[0.03]',
+        card: 'border-white/10 bg-white/[0.03]',
+        reply: 'border-white/10 bg-white/[0.04]',
+        scope: 'bg-purple-500/10 text-purple-200',
         trigger: 'border-purple-500/20 bg-purple-500/[0.08] text-purple-100 hover:bg-purple-500/[0.14]'
     },
     private: {
         section: 'border-white/10 bg-white/[0.03]',
-        icon: 'bg-white/[0.06] text-slate-300',
+        icon: 'text-slate-500',
         composer: 'border-white/10 bg-white/[0.03]',
-        card: 'border-white/10 bg-black/15',
-        reply: 'border-white/10 bg-black/20',
+        card: 'border-white/10 bg-white/[0.03]',
+        reply: 'border-white/10 bg-white/[0.04]',
         scope: 'bg-white/[0.06] text-slate-300',
         trigger: 'border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]'
     }
@@ -54,8 +54,8 @@ const CommentItem = ({ comment, currentUserId, onReply, replyEnabled, styles }) 
     );
 
     return (
-        <div className={`rounded-2xl border p-4 ${styles.card}`}>
-            <div className="flex flex-wrap items-center gap-2">
+        <div className={`rounded-xl border p-4 ${styles.card}`}>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-medium text-white">{comment.user?.name || 'Пользователь'}</span>
                 {comment.user_id === currentUserId && (
                     <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">Вы</span>
@@ -64,20 +64,20 @@ const CommentItem = ({ comment, currentUserId, onReply, replyEnabled, styles }) 
                 {comment.is_edited && <span className="text-xs text-slate-500">изменено</span>}
             </div>
 
-            <p className="mt-2.5 whitespace-pre-wrap text-sm leading-6 text-slate-300">{comment.body}</p>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-300">{comment.body}</p>
 
             {replyEnabled && (
-                <div className="mt-4">
+                <div className="mt-3">
                     {!isReplyOpen ? (
                         <button
                             type="button"
                             onClick={() => setIsReplyOpen(true)}
-                            className="text-sm text-slate-400 transition hover:text-white"
+                            className="text-sm text-gray-400 transition hover:text-white"
                         >
                             Ответить
                         </button>
                     ) : (
-                        <div className={`rounded-2xl border p-3 ${styles.composer}`}>
+                        <div className={`rounded-xl border p-3 ${styles.composer}`}>
                             <CommentComposer
                                 compact
                                 placeholder="Напишите ответ..."
@@ -95,15 +95,15 @@ const CommentItem = ({ comment, currentUserId, onReply, replyEnabled, styles }) 
             {replies.length > 0 && (
                 <div className="mt-4 space-y-3 border-l border-white/10 pl-4">
                     {replies.map((reply) => (
-                        <div key={reply.id} className={`rounded-2xl border p-3 ${styles.reply}`}>
-                            <div className="flex flex-wrap items-center gap-2">
+                        <div key={reply.id} className={`rounded-xl border p-3 ${styles.reply}`}>
+                            <div className="flex flex-wrap items-center gap-2 text-sm">
                                 <span className="font-medium text-white">{reply.user?.name || 'Пользователь'}</span>
                                 {reply.user_id === currentUserId && (
                                     <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-slate-300">Вы</span>
                                 )}
                                 <span className="text-xs text-slate-500">{formatCommentDate(reply.created_at)}</span>
                             </div>
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{reply.body}</p>
+                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-300">{reply.body}</p>
                         </div>
                     ))}
                 </div>
@@ -145,13 +145,13 @@ const CommentThreadList = ({
     const composerBlock = onCreate ? (
         composerMode === 'toggle' ? (
             isComposerOpen ? (
-                <div className={`rounded-2xl border p-4 ${styles.composer}`}>
+                <div className={`rounded-xl border p-4 ${styles.composer}`}>
                     <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Новый комментарий</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Новый комментарий</p>
                         <button
                             type="button"
                             onClick={() => setIsComposerOpen(false)}
-                            className="text-sm text-slate-400 transition hover:text-white"
+                            className="text-sm text-gray-400 transition hover:text-white"
                         >
                             Скрыть
                         </button>
@@ -170,15 +170,15 @@ const CommentThreadList = ({
                 <button
                     type="button"
                     onClick={() => setIsComposerOpen(true)}
-                    className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${styles.trigger}`}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${styles.trigger}`}
                 >
                     <HiChatBubbleLeftEllipsis className="h-4 w-4" />
                     {composerTriggerLabel}
                 </button>
             )
         ) : (
-            <div className={`rounded-2xl border p-4 ${styles.composer}`}>
-                <p className="mb-3 text-xs uppercase tracking-[0.2em] text-slate-500">Новое сообщение</p>
+            <div className={`rounded-xl border p-4 ${styles.composer}`}>
+                <p className="mb-3 text-xs uppercase tracking-[0.18em] text-slate-500">Новое сообщение</p>
                 <CommentComposer
                     placeholder={createPlaceholder}
                     submitLabel={createLabel}
@@ -192,7 +192,7 @@ const CommentThreadList = ({
     const commentsBlock = loading ? (
         <div className="py-8 text-center text-sm text-slate-500">Загружаем комментарии...</div>
     ) : sortedComments.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+        <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
             {emptyMessage}
         </div>
     ) : (
@@ -211,13 +211,11 @@ const CommentThreadList = ({
     );
 
     return (
-        <section className={`rounded-[28px] border p-5 ${styles.section}`}>
-            <div className="mb-5 flex items-start gap-3">
-                <div className={`rounded-2xl p-3 ${styles.icon}`}>
-                    <HiChatBubbleLeftEllipsis className="h-4 w-4" />
-                </div>
+        <section className={`rounded-2xl border p-5 ${styles.section}`}>
+            <div className="mb-4 flex items-start justify-between gap-3 border-b border-white/10 pb-4">
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
+                        <HiChatBubbleLeftEllipsis className={`h-4 w-4 ${styles.icon}`} />
                         <h2 className="text-lg font-semibold text-white">{title}</h2>
                         {scopeLabel && (
                             <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${styles.scope}`}>
@@ -225,7 +223,7 @@ const CommentThreadList = ({
                             </span>
                         )}
                     </div>
-                    {description && <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>}
+                    {description && <p className="mt-2 text-sm leading-6 text-gray-500">{description}</p>}
                 </div>
             </div>
 

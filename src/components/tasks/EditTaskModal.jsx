@@ -156,37 +156,37 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
                 onClick={handleClose}
             >
                 <motion.div
                     initial={{ scale: 0.98, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.98, opacity: 0 }}
-                    className="mx-auto my-4 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-purple-500/12 bg-[radial-gradient(circle_at_top_right,_rgba(124,58,237,0.14),_transparent_30%),rgba(15,17,27,0.98)] p-5 shadow-[0_32px_120px_rgba(0,0,0,0.42)] md:p-6"
+                    className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 shadow-2xl md:p-6"
                     onClick={(event) => event.stopPropagation()}
                 >
-                    <div className="mb-7 flex items-start justify-between gap-4">
+                    <div className="mb-6 flex items-start justify-between gap-4 border-b border-white/10 pb-4">
                         <div className="max-w-2xl">
-                            <h2 className="text-3xl font-semibold text-white">Редактировать задание</h2>
-                            <p className="mt-3 text-sm leading-7 text-slate-400">
-                                Обновите текст задания и материалы. Новые файлы можно добавить сразу несколько.
+                            <h2 className="text-2xl font-bold text-white md:text-3xl">Редактировать задание</h2>
+                            <p className="mt-2 text-sm text-gray-400">
+                                Обновите описание, баллы, дедлайн и материалы задания.
                             </p>
                         </div>
 
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="rounded-2xl p-2 text-slate-400 transition hover:bg-white/[0.05] hover:text-white"
+                            className="rounded-xl p-2 text-gray-400 transition hover:bg-white/5 hover:text-white"
                         >
                             <HiXMark className="h-6 w-6" />
                         </button>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),180px,220px]">
-                            <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-300">
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr),170px,210px]">
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                <label className="mb-2 block text-sm font-medium text-gray-400">
                                     Название <span className="text-red-400">*</span>
                                 </label>
                                 <input
@@ -194,48 +194,50 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleChange}
-                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
                                 />
                                 {errors.name && <p className="mt-2 text-sm text-red-400">{errors.name}</p>}
                             </div>
 
-                            <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-300">Баллы</label>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Баллы</label>
                                 <input
                                     type="number"
                                     name="scores"
                                     value={formData.scores}
                                     onChange={handleChange}
                                     min="0"
-                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
                                 />
                             </div>
 
-                            <div>
-                                <label className="mb-2 block text-sm font-semibold text-slate-300">Дедлайн</label>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Дедлайн</label>
                                 <input
                                     type="datetime-local"
                                     name="deadline"
                                     value={formData.deadline}
                                     onChange={handleChange}
-                                    className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white outline-none transition focus:border-purple-500 [color-scheme:dark]"
+                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500 [color-scheme:dark]"
                                 />
                             </div>
                         </div>
 
-                        <RichTextEditor
-                            id="edit-task-description"
-                            label="Описание"
-                            value={formData.description}
-                            onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
-                            placeholder="Опишите задачу, критерии и ожидаемый формат сдачи"
-                            minHeightClassName="min-h-[220px]"
-                        />
+                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+                            <RichTextEditor
+                                id="edit-task-description"
+                                label="Описание"
+                                value={formData.description}
+                                onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
+                                placeholder="Опишите задачу, критерии и ожидаемый формат сдачи"
+                                minHeightClassName="min-h-[220px]"
+                            />
+                        </section>
 
-                        <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
                             <div>
                                 <h3 className="text-lg font-semibold text-white">Текущие материалы</h3>
-                                <p className="mt-2 text-sm text-slate-400">
+                                <p className="mt-2 text-sm text-gray-400">
                                     Если файл больше не нужен, уберите его из списка.
                                 </p>
                             </div>
@@ -249,16 +251,16 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                             </div>
                         </section>
 
-                        <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
                             <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
                                     <h3 className="text-lg font-semibold text-white">Добавить новые материалы</h3>
-                                    <p className="mt-2 text-sm text-slate-400">
+                                    <p className="mt-2 text-sm text-gray-400">
                                         После сохранения новые файлы сразу появятся у студентов.
                                     </p>
                                 </div>
 
-                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-purple-500/25 bg-purple-500/15 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/22">
+                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500/20">
                                     <HiPlus className="h-4 w-4" />
                                     Выбрать файлы
                                     <input type="file" multiple onChange={handleNewMaterialsChange} className="hidden" />
@@ -268,15 +270,15 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                             {newMaterials.length > 0 ? (
                                 <div className="mt-4 space-y-2">
                                     {newMaterials.map((file, index) => (
-                                        <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-200">
+                                        <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
                                             <div className="flex min-w-0 items-center gap-2">
-                                                <HiPaperClip className="h-4 w-4 text-slate-400" />
+                                                <HiPaperClip className="h-4 w-4 text-gray-400" />
                                                 <span className="truncate">{file.name}</span>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveNewMaterial(index)}
-                                                className="rounded-full p-0.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                                                className="rounded-full p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
                                             >
                                                 <HiXMark className="h-4 w-4" />
                                             </button>
@@ -284,7 +286,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                     ))}
                                 </div>
                             ) : (
-                                <div className="mt-4 rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+                                <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-gray-500">
                                     Новые материалы пока не выбраны.
                                 </div>
                             )}
@@ -294,14 +296,14 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                             <button
                                 type="button"
                                 onClick={handleClose}
-                                className="rounded-2xl bg-white/[0.06] px-5 py-3 font-medium text-white transition hover:bg-white/[0.1]"
+                                className="rounded-xl bg-white/10 px-5 py-3 font-medium text-white transition hover:bg-white/15"
                             >
                                 Отмена
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                                className="rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-700 disabled:opacity-50"
                             >
                                 {loading ? 'Сохраняем...' : 'Сохранить изменения'}
                             </button>

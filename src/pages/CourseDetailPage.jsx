@@ -14,6 +14,7 @@ import {
     HiMiniRectangleStack,
     HiPaperClip,
     HiPencil,
+    HiPlus,
     HiStar,
     HiTrash,
     HiUserCircle,
@@ -21,6 +22,9 @@ import {
 } from 'react-icons/hi2';
 import CreateDisciplineModal from '../components/disciplines/CreateDisciplineModal';
 import EditDisciplineModal from '../components/disciplines/EditDisciplineModal';
+import CreateTaskModal from '../components/tasks/CreateTaskModal';
+import EditTaskModal from '../components/tasks/EditTaskModal';
+import ActionMenu from '../components/layout/ActionMenu';
 import ConfirmModal from '../components/layout/ConfirmModal';
 import MainLayout from '../components/layout/MainLayout';
 import EditCourseModal from '../components/courses/EditCourseModal';
@@ -80,11 +84,16 @@ const CourseDetailPage = () => {
     const [copiedInvite, setCopiedInvite] = useState(false);
     const [copiedTeacherInvite, setCopiedTeacherInvite] = useState(false);
     const [showCreateDiscipline, setShowCreateDiscipline] = useState(false);
+    const [showCreateTask, setShowCreateTask] = useState(false);
     const [showEditCourse, setShowEditCourse] = useState(false);
     const [showEditDiscipline, setShowEditDiscipline] = useState(false);
+    const [showEditTask, setShowEditTask] = useState(false);
     const [selectedDiscipline, setSelectedDiscipline] = useState(null);
+    const [taskCreationDiscipline, setTaskCreationDiscipline] = useState(null);
+    const [selectedTask, setSelectedTask] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showDeleteDisciplineConfirm, setShowDeleteDisciplineConfirm] = useState(false);
+    const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState(false);
     const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
     const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -207,6 +216,23 @@ const CourseDetailPage = () => {
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления дисциплины');
         } finally {
             setShowDeleteDisciplineConfirm(false);
+        }
+    };
+
+    const handleDeleteTask = async () => {
+        if (!selectedTask) {
+            return;
+        }
+
+        try {
+            await taskService.deleteTask(selectedTask.id);
+            showToast('success', 'Задание удалено');
+            setSelectedTask(null);
+            await fetchData();
+        } catch (error) {
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления задания');
+        } finally {
+            setShowDeleteTaskConfirm(false);
         }
     };
 
@@ -409,28 +435,39 @@ const CourseDetailPage = () => {
                                                     <div className="mt-3 text-xs text-gray-500">Часов: {discipline.hours || 0}</div>
                                                 </div>
                                                 {isTeacher && (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedDiscipline(discipline);
-                                                                setShowEditDiscipline(true);
-                                                            }}
-                                                            className="rounded-lg bg-white/5 p-2 transition hover:bg-white/10"
-                                                        >
-                                                            <HiPencil className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedDiscipline(discipline);
-                                                                setShowDeleteDisciplineConfirm(true);
-                                                            }}
-                                                            className="rounded-lg bg-red-600/20 p-2 transition hover:bg-red-600/30"
-                                                        >
-                                                            <HiTrash className="h-4 w-4 text-red-400" />
-                                                        </button>
-                                                    </div>
+                                                    <ActionMenu
+                                                        showLabel
+                                                        buttonLabel="Действия"
+                                                        buttonClassName="border border-white/10 bg-white/5"
+                                                        items={[
+                                                            {
+                                                                label: 'Создать задание',
+                                                                icon: HiPlus,
+                                                                disabled: isArchived,
+                                                                onClick: () => {
+                                                                    setTaskCreationDiscipline(discipline);
+                                                                    setShowCreateTask(true);
+                                                                }
+                                                            },
+                                                            {
+                                                                label: 'Редактировать',
+                                                                icon: HiPencil,
+                                                                onClick: () => {
+                                                                    setSelectedDiscipline(discipline);
+                                                                    setShowEditDiscipline(true);
+                                                                }
+                                                            },
+                                                            {
+                                                                label: 'Удалить',
+                                                                icon: HiTrash,
+                                                                danger: true,
+                                                                onClick: () => {
+                                                                    setSelectedDiscipline(discipline);
+                                                                    setShowDeleteDisciplineConfirm(true);
+                                                                }
+                                                            }
+                                                        ]}
+                                                    />
                                                 )}
                                             </div>
                                         </div>
@@ -442,7 +479,14 @@ const CourseDetailPage = () => {
 
                     {activeTab === 'tasks' && (
                         <motion.div key="tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            <h2 className="mb-6 text-2xl font-semibold">Задания</h2>
+                            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                                <h2 className="text-2xl font-semibold">Задания</h2>
+                                {isTeacher && (
+                                    <p className="text-sm text-slate-500">
+                                        Создание задания доступно из меню дисциплины.
+                                    </p>
+                                )}
+                            </div>
                             <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-slate-300">
                                 <p className="max-w-2xl text-slate-400">
                                     Все задания курса собраны в одной ленте: видно дисциплину, срок сдачи, баллы и материалы.
@@ -476,15 +520,43 @@ const CourseDetailPage = () => {
                                                         )}
                                                         <h3 className="text-lg font-semibold text-white transition group-hover:text-sky-100">{task.name}</h3>
                                                     </div>
-                                                    {task.scores !== undefined && (
-                                                        <div className="shrink-0 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-right">
-                                                            <div className="text-[10px] uppercase tracking-[0.18em] text-amber-100/70">Баллы</div>
-                                                            <div className="mt-1 flex items-center gap-1 text-sm font-semibold text-amber-100">
-                                                                <HiStar className="h-4 w-4" />
-                                                                {task.scores}
+                                                    <div className="flex items-start gap-2">
+                                                        {task.scores !== undefined && (
+                                                            <div className="shrink-0 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-right">
+                                                                <div className="text-[10px] uppercase tracking-[0.18em] text-amber-100/70">Баллы</div>
+                                                                <div className="mt-1 flex items-center gap-1 text-sm font-semibold text-amber-100">
+                                                                    <HiStar className="h-4 w-4" />
+                                                                    {task.scores}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                        {isTeacher && (
+                                                            <ActionMenu
+                                                                showLabel
+                                                                buttonLabel="Действия"
+                                                                buttonClassName="border border-white/10 bg-white/5"
+                                                                items={[
+                                                                    {
+                                                                        label: 'Редактировать',
+                                                                        icon: HiPencil,
+                                                                        onClick: () => {
+                                                                            setSelectedTask(task);
+                                                                            setShowEditTask(true);
+                                                                        }
+                                                                    },
+                                                                    {
+                                                                        label: 'Удалить',
+                                                                        icon: HiTrash,
+                                                                        danger: true,
+                                                                        onClick: () => {
+                                                                            setSelectedTask(task);
+                                                                            setShowDeleteTaskConfirm(true);
+                                                                        }
+                                                                    }
+                                                                ]}
+                                                            />
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <p className="mb-4 min-h-[72px] text-sm leading-6 text-slate-300">
                                                     {taskSummary || 'Откройте задание, чтобы посмотреть полное описание и материалы.'}
@@ -597,6 +669,20 @@ const CourseDetailPage = () => {
                 }}
                 courseId={course.id}
             />
+            <CreateTaskModal
+                isOpen={showCreateTask}
+                onClose={() => {
+                    setShowCreateTask(false);
+                    setTaskCreationDiscipline(null);
+                }}
+                onSuccess={() => {
+                    setShowCreateTask(false);
+                    setTaskCreationDiscipline(null);
+                    fetchData();
+                }}
+                courseId={course.id}
+                disciplineId={taskCreationDiscipline?.id}
+            />
             <EditDisciplineModal
                 isOpen={showEditDiscipline}
                 onClose={() => setShowEditDiscipline(false)}
@@ -605,6 +691,19 @@ const CourseDetailPage = () => {
                     fetchData();
                 }}
                 discipline={selectedDiscipline}
+            />
+            <EditTaskModal
+                isOpen={showEditTask}
+                onClose={() => {
+                    setShowEditTask(false);
+                    setSelectedTask(null);
+                }}
+                onSuccess={() => {
+                    setShowEditTask(false);
+                    setSelectedTask(null);
+                    fetchData();
+                }}
+                task={selectedTask}
             />
             <EditCourseModal
                 isOpen={showEditCourse}
@@ -617,6 +716,7 @@ const CourseDetailPage = () => {
             />
             <ConfirmModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={handleDeleteCourse} title="Удаление курса" message="Вы уверены? Это действие необратимо." confirmText="Удалить" />
             <ConfirmModal isOpen={showDeleteDisciplineConfirm} onClose={() => setShowDeleteDisciplineConfirm(false)} onConfirm={handleDeleteDiscipline} title="Удаление дисциплины" message={`Удалить дисциплину ${selectedDiscipline?.name || ''}?`} confirmText="Удалить" />
+            <ConfirmModal isOpen={showDeleteTaskConfirm} onClose={() => { setShowDeleteTaskConfirm(false); setSelectedTask(null); }} onConfirm={handleDeleteTask} title="Удаление задания" message={`Удалить задание ${selectedTask?.name || ''}?`} confirmText="Удалить" />
             <ConfirmModal isOpen={showArchiveConfirm} onClose={() => setShowArchiveConfirm(false)} onConfirm={() => runCourseAction(courseService.archiveCourse, 'Курс архивирован', setShowArchiveConfirm)} title="Архивация курса" message="Курс будет перемещён в архив." confirmText="Архивировать" />
             <ConfirmModal isOpen={showRestoreConfirm} onClose={() => setShowRestoreConfirm(false)} onConfirm={() => runCourseAction(courseService.restoreCourse, 'Курс восстановлен', setShowRestoreConfirm)} title="Восстановление курса" message="Курс будет восстановлен из архива." confirmText="Восстановить" />
             <ConfirmModal isOpen={showCloseConfirm} onClose={() => setShowCloseConfirm(false)} onConfirm={() => runCourseAction(courseService.closeCourse, 'Курс закрыт для новых участников', setShowCloseConfirm)} title="Закрытие курса" message="Новые участники не смогут вступить в курс." confirmText="Закрыть" />
