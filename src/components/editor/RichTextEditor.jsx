@@ -16,12 +16,14 @@ const RichTextEditor = ({
     onChange,
     placeholder = 'Введите текст',
     error = '',
-    minHeightClassName = 'min-h-[220px]'
+    minHeightClassName = 'min-h-[220px]',
+    editorClassName = ''
 }) => {
     const editorRef = useRef(null);
     const [activeCommands, setActiveCommands] = useState({});
 
     const plainText = useMemo(() => getPlainTextFromRichText(value), [value]);
+    const resolvedEditorClassName = editorClassName || minHeightClassName;
 
     useEffect(() => {
         if (!editorRef.current) {
@@ -91,14 +93,14 @@ const RichTextEditor = ({
     };
 
     return (
-        <div>
+        <div className="flex min-h-0 flex-col">
             {label && (
                 <label htmlFor={id} className="mb-2 block text-sm font-medium text-gray-400">
                     {label}
                 </label>
             )}
 
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/5">
                 <div className="flex flex-wrap gap-2 border-b border-white/10 bg-black/10 p-3">
                     {TOOLBAR_ACTIONS.map((action) => {
                         const Icon = action.icon;
@@ -123,7 +125,7 @@ const RichTextEditor = ({
                     })}
                 </div>
 
-                <div className={`relative ${minHeightClassName}`}>
+                <div className={`relative min-h-0 flex-1 ${minHeightClassName}`}>
                     {!plainText && (
                         <div className="pointer-events-none absolute inset-x-0 top-0 px-4 py-4 text-gray-500">
                             {placeholder}
@@ -137,7 +139,7 @@ const RichTextEditor = ({
                         suppressContentEditableWarning
                         onInput={emitChange}
                         onPaste={handlePaste}
-                        className={`relative z-10 w-full px-4 py-4 text-base leading-7 text-white outline-none [&_p]:mb-4 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through ${minHeightClassName}`}
+                        className={`relative z-10 h-full w-full px-4 py-4 text-base leading-7 text-white outline-none [&_p]:mb-4 [&_p:last-child]:mb-0 [&_strong]:font-semibold [&_em]:italic [&_u]:underline [&_s]:line-through ${resolvedEditorClassName}`}
                     />
                 </div>
             </div>

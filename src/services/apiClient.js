@@ -3,7 +3,6 @@ import { clearAuthSession, getStoredToken, setAuthSession } from './authStorage'
 
 const baseURL = process.env.REACT_APP_API_URL || 'https://aiditorium.ru/api';
 const defaultHeaders = {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
 };
 
@@ -53,6 +52,11 @@ const refreshToken = async () => {
 // Интерсептор для добавления токена к каждому запросу
 apiClient.interceptors.request.use((config) => {
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+        if (config.headers?.set) {
+            config.headers.set('Content-Type', undefined);
+            config.headers.set('content-type', undefined);
+        }
+
         if (config.headers) {
             delete config.headers['Content-Type'];
             delete config.headers['content-type'];

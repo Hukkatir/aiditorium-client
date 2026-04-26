@@ -518,88 +518,47 @@ const CourseDetailPage = () => {
                                                         )}
                                                         <h3 className="text-lg font-semibold text-white">{task.name}</h3>
                                                     </div>
-                                                    <div className="flex items-start gap-2">
-                                                        {task.scores !== undefined && (
-                                                            <div className="shrink-0 rounded-2xl border border-purple-400/20 bg-purple-500/10 px-3 py-2 text-right">
-                                                                <div className="text-[10px] uppercase tracking-[0.18em] text-purple-100/70">Баллы</div>
-                                                                <div className="mt-1 flex items-center gap-1 text-sm font-semibold text-purple-100">
-                                                                    <HiStar className="h-4 w-4" />
-                                                                    {task.scores}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {isTeacher && (
-                                                            <ActionMenu
-                                                                buttonClassName="border border-white/10 bg-white/5"
-                                                                items={[
-                                                                    {
-                                                                        label: 'Редактировать',
-                                                                        icon: HiPencil,
-                                                                        onClick: () => {
-                                                                            setSelectedTask(task);
-                                                                            setShowEditTask(true);
-                                                                        }
-                                                                    },
-                                                                    {
-                                                                        label: 'Удалить',
-                                                                        icon: HiTrash,
-                                                                        danger: true,
-                                                                        onClick: () => {
-                                                                            setSelectedTask(task);
-                                                                            setShowDeleteTaskConfirm(true);
-                                                                        }
+                                                    {isTeacher && (
+                                                        <ActionMenu
+                                                            buttonClassName="border border-white/10 bg-white/5"
+                                                            items={[
+                                                                {
+                                                                    label: 'Редактировать',
+                                                                    icon: HiPencil,
+                                                                    onClick: () => {
+                                                                        setSelectedTask(task);
+                                                                        setShowEditTask(true);
                                                                     }
-                                                                ]}
-                                                            />
-                                                        )}
-                                                    </div>
+                                                                },
+                                                                {
+                                                                    label: 'Удалить',
+                                                                    icon: HiTrash,
+                                                                    danger: true,
+                                                                    onClick: () => {
+                                                                        setSelectedTask(task);
+                                                                        setShowDeleteTaskConfirm(true);
+                                                                    }
+                                                                }
+                                                            ]}
+                                                        />
+                                                    )}
                                                 </div>
-                                                <p className="mb-4 min-h-[72px] text-sm leading-6 text-slate-300">
+                                                <p className="mb-4 min-h-[66px] text-sm leading-6 text-slate-300">
                                                     {taskSummary || 'Откройте задание, чтобы посмотреть полное описание и материалы.'}
                                                 </p>
-                                                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                                                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                                                            <HiClock className="h-3.5 w-3.5" />
-                                                            Срок сдачи
-                                                        </div>
-                                                        <div className="mt-2 text-sm font-medium text-slate-100">
-                                                            {task.deadline ? formatDate(task.deadline) : 'Без ограничения'}
-                                                        </div>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                                                        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                                                            <HiPaperClip className="h-3.5 w-3.5" />
-                                                            Материалы
-                                                        </div>
-                                                        <div className="mt-2 text-sm font-medium text-slate-100">
-                                                            {materials.length > 0 ? `${materials.length} файл(ов)` : 'Файлов нет'}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-wrap items-center gap-3 border-t border-white/8 pt-4 text-xs text-gray-500">
-                                                    {task.scores !== undefined && (
-                                                        <span className="flex items-center gap-1">
-                                                            <HiStar className="h-3 w-3 text-yellow-400" />
-                                                            {task.scores} баллов
-                                                        </span>
-                                                    )}
-                                                    {task.deadline && (
-                                                        <span className="flex items-center gap-1">
-                                                            <HiClock className="h-3 w-3" />
-                                                            Срок сдачи: {formatDate(task.deadline)}
-                                                        </span>
-                                                    )}
-                                                    <span className="flex items-center gap-1">
-                                                        <HiCalendar className="h-3 w-3" />
-                                                        Создано: {formatDate(task.created_at)}
+                                                <div className="flex flex-wrap items-center gap-2 border-t border-white/8 pt-4 text-xs text-gray-400">
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5">
+                                                        <HiStar className="h-3.5 w-3.5 text-purple-300" />
+                                                        {task.scores ?? 100} баллов
                                                     </span>
-                                                    {materials.length > 0 && (
-                                                        <span className="flex items-center gap-1">
-                                                            <HiPaperClip className="h-3 w-3" />
-                                                            {materials.length}
-                                                        </span>
-                                                    )}
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5">
+                                                        <HiPaperClip className="h-3.5 w-3.5 text-purple-300" />
+                                                        {materials.length > 0 ? `${materials.length} файл(ов)` : 'Без материалов'}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5">
+                                                        <HiClock className="h-3.5 w-3.5 text-purple-300" />
+                                                        {task.deadline ? formatDate(task.deadline) : 'Без срока сдачи'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         );

@@ -22,6 +22,17 @@ const mergeUniqueFiles = (previousFiles, nextFiles) => {
     return result;
 };
 
+const appendTaskMaterials = (formData, files) => {
+    if (!files.length) {
+        return;
+    }
+
+    formData.append('attachment', files[0]);
+    files.forEach((file) => {
+        formData.append('attachments[]', file);
+    });
+};
+
 const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
     const { showToast } = useToast();
     const [formData, setFormData] = useState({
@@ -114,28 +125,26 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
         setLoading(true);
 
         try {
-            const form = new FormData();
-            form.append('name', formData.name.trim());
+            const payload = new FormData();
+            payload.append('name', formData.name.trim());
 
             if (formData.description) {
-                form.append('description', formData.description);
+                payload.append('description', formData.description);
             }
             if (formData.scores) {
-                form.append('scores', String(parseInt(formData.scores, 10)));
+                payload.append('scores', String(parseInt(formData.scores, 10)));
             }
             if (formData.deadline) {
-                form.append('deadline', formData.deadline);
+                payload.append('deadline', formData.deadline);
             }
 
-            newMaterials.forEach((file) => {
-                form.append('attachments', file);
-            });
+            appendTaskMaterials(payload, newMaterials);
 
             removedAttachmentIds.forEach((fileId) => {
-                form.append('removed_attachment_ids[]', String(fileId));
+                payload.append('removed_attachment_ids[]', String(fileId));
             });
 
-            await taskService.updateTask(task.id, form);
+            await taskService.updateTask(task.id, payload);
             showToast('success', 'Задание обновлено');
             onSuccess();
             onClose();
@@ -148,7 +157,9 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
         }
     };
 
-    if (!isOpen || !task) return null;
+    if (!isOpen || !task) {
+        return null;
+    }
 
     return (
         <AnimatePresence>
@@ -156,18 +167,18 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] overflow-y-auto bg-black/75 px-4 py-24 backdrop-blur-sm"
+                className="fixed inset-0 z-[60] flex items-start justify-center bg-black/75 px-4 pb-4 pt-[92px] backdrop-blur-sm"
                 onClick={handleClose}
             >
-                <div className="flex min-h-full items-start justify-center">
+                <div className="w-full max-w-4xl">
                     <motion.div
                         initial={{ scale: 0.98, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.98, opacity: 0 }}
-                        className="w-full max-w-4xl rounded-2xl border border-white/10 bg-[#1A1A1C] p-4 shadow-2xl md:p-5"
+                        className="flex h-[calc(100vh-116px)] max-h-[820px] w-full flex-col overflow-hidden rounded-2xl border border-purple-500/20 bg-[#17141F] p-4 shadow-2xl md:p-5"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <div className="mb-5 flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+                        <div className="mb-4 flex shrink-0 items-start justify-between gap-4 border-b border-white/10 pb-4">
                             <div className="max-w-2xl">
                                 <h2 className="text-2xl font-bold text-white">Редактировать задание</h2>
                                 <p className="mt-2 text-sm text-gray-400">
@@ -184,9 +195,9 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),170px,220px]">
-                                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+                            <div className="grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr),150px,220px]">
+                                <div className="rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5">
                                     <label className="mb-2 block text-sm font-medium text-gray-400">
                                         Название <span className="text-red-400">*</span>
                                     </label>
@@ -200,7 +211,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                     {errors.name && <p className="mt-2 text-sm text-red-400">{errors.name}</p>}
                                 </div>
 
-                                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                <div className="rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5">
                                     <label className="mb-2 block text-sm font-medium text-gray-400">Баллы</label>
                                     <input
                                         type="number"
@@ -212,7 +223,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                     />
                                 </div>
 
-                                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                <div className="rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5">
                                     <label className="mb-2 block text-sm font-medium text-gray-400">Срок сдачи</label>
                                     <input
                                         type="datetime-local"
@@ -224,26 +235,29 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                 </div>
                             </div>
 
-                            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+                            <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5 md:p-4">
                                 <RichTextEditor
                                     id="edit-task-description"
                                     label="Описание"
                                     value={formData.description}
                                     onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
                                     placeholder="Опишите задачу, критерии и ожидаемый формат сдачи"
-                                    minHeightClassName="min-h-[180px]"
+                                    minHeightClassName="min-h-0 flex-1"
+                                    editorClassName="overflow-y-auto"
                                 />
                             </section>
 
-                            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-white">Текущие материалы</h3>
-                                    <p className="mt-2 text-sm text-gray-400">
-                                        Если файл больше не нужен, уберите его из списка.
-                                    </p>
+                            <section className="shrink-0 rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5 md:p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <h3 className="text-base font-semibold text-white">Текущие материалы</h3>
+                                        <p className="mt-1 text-sm text-gray-400">
+                                            Уберите файл из списка, если он больше не нужен.
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <div className="mt-4">
+                                <div className="mt-3 max-h-24 overflow-y-auto pr-1">
                                     <FileTileGrid
                                         files={existingMaterials}
                                         emptyMessage="Сейчас у задания нет материалов."
@@ -252,12 +266,12 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                 </div>
                             </section>
 
-                            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
-                                <div className="flex flex-wrap items-start justify-between gap-4">
+                            <section className="shrink-0 rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5 md:p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
-                                        <h3 className="text-lg font-semibold text-white">Добавить новые материалы</h3>
-                                        <p className="mt-2 text-sm text-gray-400">
-                                            После сохранения новые файлы сразу появятся у студентов.
+                                        <h3 className="text-base font-semibold text-white">Добавить новые материалы</h3>
+                                        <p className="mt-1 text-sm text-gray-400">
+                                            Можно выбрать один файл или сразу несколько.
                                         </p>
                                     </div>
 
@@ -269,7 +283,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                 </div>
 
                                 {newMaterials.length > 0 ? (
-                                    <div className="mt-4 space-y-2">
+                                    <div className="mt-3 max-h-24 space-y-2 overflow-y-auto pr-1">
                                         {newMaterials.map((file, index) => (
                                             <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
                                                 <div className="flex min-w-0 items-center gap-2">
@@ -287,13 +301,13 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-gray-500">
+                                    <div className="mt-3 rounded-xl border border-dashed border-white/10 px-4 py-5 text-center text-sm text-gray-500">
                                         Новые материалы пока не выбраны.
                                     </div>
                                 )}
                             </section>
 
-                            <div className="flex flex-wrap justify-end gap-3 pt-2">
+                            <div className="flex shrink-0 flex-wrap justify-end gap-3 pt-1">
                                 <button
                                     type="button"
                                     onClick={handleClose}

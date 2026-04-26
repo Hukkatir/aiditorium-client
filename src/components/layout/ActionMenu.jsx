@@ -1,13 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { HiEllipsisHorizontal } from 'react-icons/hi2';
+import { HiEllipsisVertical } from 'react-icons/hi2';
 
 const ActionMenu = ({
     items,
     buttonClassName = '',
     menuClassName = '',
-    label = 'Действия',
-    showLabel = false,
-    buttonLabel = 'Действия'
+    label = 'Открыть меню'
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef(null);
@@ -46,12 +44,9 @@ const ActionMenu = ({
                 type="button"
                 aria-label={label}
                 onClick={() => setIsOpen((previous) => !previous)}
-                className={`inline-flex items-center rounded-xl bg-white/5 text-gray-300 transition hover:bg-white/10 hover:text-white ${
-                    showLabel ? 'gap-2 px-3 py-2 text-sm' : 'justify-center p-2'
-                } ${buttonClassName}`.trim()}
+                className={`inline-flex items-center justify-center rounded-xl bg-white/5 p-2 text-gray-300 transition hover:bg-white/10 hover:text-white ${buttonClassName}`.trim()}
             >
-                <HiEllipsisHorizontal className="h-5 w-5" />
-                {showLabel && <span>{buttonLabel}</span>}
+                <HiEllipsisVertical className="h-5 w-5" />
             </button>
 
             {isOpen && (
