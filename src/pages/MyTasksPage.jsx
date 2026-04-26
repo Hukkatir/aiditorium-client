@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
     HiCalendar,
     HiMagnifyingGlass,
-    HiMiniRectangleStack,
     HiPaperClip,
     HiStar
 } from 'react-icons/hi2';
@@ -266,10 +265,6 @@ const MyTasksPage = () => {
                                     <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                         <HiCalendar className="h-3.5 w-3.5" />
                                         Последняя отправка: {formatDateTime(entry.latestSubmission.created_at)}
-                                    </span>
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                        <HiMiniRectangleStack className="h-3.5 w-3.5" />
-                                        Задание #{entry.task.task_number}
                                     </span>
                                     <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                         <HiStar className="h-3.5 w-3.5 text-yellow-400" />

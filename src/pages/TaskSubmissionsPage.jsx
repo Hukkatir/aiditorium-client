@@ -415,7 +415,7 @@ const TaskSubmissionsPage = () => {
                     <div className="flex flex-wrap items-start justify-between gap-5">
                         <div className="max-w-4xl">
                             <div className="text-[11px] uppercase tracking-[0.18em] text-purple-300">
-                                Проверка работ • Задание #{task.task_number}
+                                Проверка работ
                             </div>
                             <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">{task.name}</h1>
                             <div className="mt-4 max-w-3xl">

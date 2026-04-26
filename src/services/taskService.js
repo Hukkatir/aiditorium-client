@@ -46,9 +46,7 @@ export const taskService = {
             formData.append('comment', comment.trim());
         }
 
-        const response = await apiClient.post('/task/submit', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        const response = await apiClient.post('/task/submit', formData);
 
         return response.data;
     },

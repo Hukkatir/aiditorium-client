@@ -18,7 +18,7 @@ const formatCommentDate = (dateString) => {
 
 const VARIANT_STYLES = {
     default: {
-        section: 'border-white/10 bg-white/[0.03]',
+        section: 'border-white/10 bg-[#16161C]',
         icon: 'text-slate-500',
         composer: 'border-white/10 bg-white/[0.03]',
         card: 'border-white/10 bg-white/[0.03]',
@@ -27,7 +27,7 @@ const VARIANT_STYLES = {
         trigger: 'border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]'
     },
     public: {
-        section: 'border-white/10 bg-white/[0.03]',
+        section: 'border-white/10 bg-[#16161C]',
         icon: 'text-purple-300',
         composer: 'border-white/10 bg-white/[0.03]',
         card: 'border-white/10 bg-white/[0.03]',
@@ -36,7 +36,7 @@ const VARIANT_STYLES = {
         trigger: 'border-purple-500/20 bg-purple-500/[0.08] text-purple-100 hover:bg-purple-500/[0.14]'
     },
     private: {
-        section: 'border-white/10 bg-white/[0.03]',
+        section: 'border-white/10 bg-[#16161C]',
         icon: 'text-slate-500',
         composer: 'border-white/10 bg-white/[0.03]',
         card: 'border-white/10 bg-white/[0.03]',

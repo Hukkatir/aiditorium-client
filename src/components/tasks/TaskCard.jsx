@@ -31,7 +31,7 @@ const TaskCard = ({ task, course, discipline, disciplineName }) => {
                 {task.deadline && (
                     <span className="flex items-center gap-1">
                         <HiClock className="w-3 h-3" />
-                        Дедлайн: {formatDate(task.deadline)}
+                        Срок сдачи: {formatDate(task.deadline)}
                     </span>
                 )}
                 <span className="flex items-center gap-1">

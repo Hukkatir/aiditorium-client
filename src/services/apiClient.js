@@ -52,6 +52,13 @@ const refreshToken = async () => {
 
 // Интерсептор для добавления токена к каждому запросу
 apiClient.interceptors.request.use((config) => {
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+        if (config.headers) {
+            delete config.headers['Content-Type'];
+            delete config.headers['content-type'];
+        }
+    }
+
     const token = getStoredToken();
     if (token) {
         config.headers = config.headers ?? {};

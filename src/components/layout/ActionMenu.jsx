@@ -46,7 +46,9 @@ const ActionMenu = ({
                 type="button"
                 aria-label={label}
                 onClick={() => setIsOpen((previous) => !previous)}
-                className={`inline-flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm text-gray-300 transition hover:bg-white/10 hover:text-white ${buttonClassName}`.trim()}
+                className={`inline-flex items-center rounded-xl bg-white/5 text-gray-300 transition hover:bg-white/10 hover:text-white ${
+                    showLabel ? 'gap-2 px-3 py-2 text-sm' : 'justify-center p-2'
+                } ${buttonClassName}`.trim()}
             >
                 <HiEllipsisHorizontal className="h-5 w-5" />
                 {showLabel && <span>{buttonLabel}</span>}

@@ -119,7 +119,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
             }
 
             materials.forEach((file) => {
-                form.append('attachments[]', file);
+                form.append('attachments', file);
             });
 
             await taskService.createTask(form);
@@ -144,145 +144,147 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+                className="fixed inset-0 z-[60] overflow-y-auto bg-black/75 px-4 py-24 backdrop-blur-sm"
                 onClick={handleClose}
             >
-                <motion.div
-                    initial={{ scale: 0.98, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.98, opacity: 0 }}
-                    className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 shadow-2xl md:p-6"
-                    onClick={(event) => event.stopPropagation()}
-                >
-                    <div className="mb-6 flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-                        <div className="max-w-2xl">
-                            <h2 className="text-2xl font-bold text-white md:text-3xl">Создать задание</h2>
-                            <p className="mt-2 text-sm text-gray-400">
-                                Укажите основные параметры и при необходимости прикрепите материалы.
-                            </p>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={handleClose}
-                            className="rounded-xl p-2 text-gray-400 transition hover:bg-white/5 hover:text-white"
-                        >
-                            <HiXMark className="h-6 w-6" />
-                        </button>
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr),170px,210px]">
-                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                <label className="mb-2 block text-sm font-medium text-gray-400">
-                                    Название <span className="text-red-400">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    placeholder="Например, Практическая работа №1"
-                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
-                                />
-                                {errors.name && <p className="mt-2 text-sm text-red-400">{errors.name}</p>}
+                <div className="flex min-h-full items-start justify-center">
+                    <motion.div
+                        initial={{ scale: 0.98, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.98, opacity: 0 }}
+                        className="w-full max-w-4xl rounded-2xl border border-white/10 bg-[#1A1A1C] p-4 shadow-2xl md:p-5"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="mb-5 flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+                            <div className="max-w-2xl">
+                                <h2 className="text-2xl font-bold text-white">Создать задание</h2>
+                                <p className="mt-2 text-sm text-gray-400">
+                                    Укажите основные параметры и при необходимости прикрепите материалы.
+                                </p>
                             </div>
 
-                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                <label className="mb-2 block text-sm font-medium text-gray-400">Баллы</label>
-                                <input
-                                    type="number"
-                                    name="scores"
-                                    value={formData.scores}
-                                    onChange={handleChange}
-                                    min="0"
-                                    placeholder="100"
-                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
-                                />
-                            </div>
-
-                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                <label className="mb-2 block text-sm font-medium text-gray-400">Дедлайн</label>
-                                <input
-                                    type="datetime-local"
-                                    name="deadline"
-                                    value={formData.deadline}
-                                    onChange={handleChange}
-                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500 [color-scheme:dark]"
-                                />
-                            </div>
-                        </div>
-
-                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
-                            <RichTextEditor
-                                id="create-task-description"
-                                label="Описание"
-                                value={formData.description}
-                                onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
-                                placeholder="Опишите задачу, критерии сдачи и дополнительные пояснения для студентов"
-                                minHeightClassName="min-h-[220px]"
-                            />
-                        </section>
-
-                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
-                            <div className="flex flex-wrap items-start justify-between gap-4">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-white">Материалы задания</h3>
-                                    <p className="mt-2 text-sm text-gray-400">
-                                        Можно выбрать сразу несколько файлов.
-                                    </p>
-                                </div>
-
-                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500/20">
-                                    <HiPlus className="h-4 w-4" />
-                                    Добавить файлы
-                                    <input type="file" multiple onChange={handleMaterialsChange} className="hidden" />
-                                </label>
-                            </div>
-
-                            {selectedMaterialNames.length > 0 ? (
-                                <div className="mt-4 space-y-2">
-                                    {selectedMaterialNames.map((item, index) => (
-                                        <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
-                                            <div className="flex min-w-0 items-center gap-2">
-                                                <HiPaperClip className="h-4 w-4 text-gray-400" />
-                                                <span className="truncate">{item.name}</span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveMaterial(index)}
-                                                className="rounded-full p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
-                                            >
-                                                <HiXMark className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-gray-500">
-                                    Материалы пока не выбраны.
-                                </div>
-                            )}
-                        </section>
-
-                        <div className="flex flex-wrap justify-end gap-3 pt-2">
                             <button
                                 type="button"
                                 onClick={handleClose}
-                                className="rounded-xl bg-white/10 px-5 py-3 font-medium text-white transition hover:bg-white/15"
+                                className="rounded-xl p-2 text-gray-400 transition hover:bg-white/5 hover:text-white"
                             >
-                                Отмена
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-700 disabled:opacity-50"
-                            >
-                                {loading ? 'Создаём...' : 'Создать задание'}
+                                <HiXMark className="h-6 w-6" />
                             </button>
                         </div>
-                    </form>
-                </motion.div>
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),170px,220px]">
+                                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                    <label className="mb-2 block text-sm font-medium text-gray-400">
+                                        Название <span className="text-red-400">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                        placeholder="Например, Практическая работа №1"
+                                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                    />
+                                    {errors.name && <p className="mt-2 text-sm text-red-400">{errors.name}</p>}
+                                </div>
+
+                                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                    <label className="mb-2 block text-sm font-medium text-gray-400">Баллы</label>
+                                    <input
+                                        type="number"
+                                        name="scores"
+                                        value={formData.scores}
+                                        onChange={handleChange}
+                                        min="0"
+                                        placeholder="100"
+                                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                    />
+                                </div>
+
+                                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                    <label className="mb-2 block text-sm font-medium text-gray-400">Срок сдачи</label>
+                                    <input
+                                        type="datetime-local"
+                                        name="deadline"
+                                        value={formData.deadline}
+                                        onChange={handleChange}
+                                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500 [color-scheme:dark]"
+                                    />
+                                </div>
+                            </div>
+
+                            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+                                <RichTextEditor
+                                    id="create-task-description"
+                                    label="Описание"
+                                    value={formData.description}
+                                    onChange={(nextValue) => setFormData((previous) => ({ ...previous, description: nextValue }))}
+                                    placeholder="Опишите задачу, критерии сдачи и дополнительные пояснения для студентов"
+                                    minHeightClassName="min-h-[180px]"
+                                />
+                            </section>
+
+                            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-white">Материалы задания</h3>
+                                        <p className="mt-2 text-sm text-gray-400">
+                                            Можно выбрать сразу несколько файлов.
+                                        </p>
+                                    </div>
+
+                                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500/20">
+                                        <HiPlus className="h-4 w-4" />
+                                        Добавить файлы
+                                        <input type="file" multiple onChange={handleMaterialsChange} className="hidden" />
+                                    </label>
+                                </div>
+
+                                {selectedMaterialNames.length > 0 ? (
+                                    <div className="mt-4 space-y-2">
+                                        {selectedMaterialNames.map((item, index) => (
+                                            <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <HiPaperClip className="h-4 w-4 text-gray-400" />
+                                                    <span className="truncate">{item.name}</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveMaterial(index)}
+                                                    className="rounded-full p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                                                >
+                                                    <HiXMark className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-gray-500">
+                                        Материалы пока не выбраны.
+                                    </div>
+                                )}
+                            </section>
+
+                            <div className="flex flex-wrap justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={handleClose}
+                                    className="rounded-xl bg-white/10 px-5 py-3 font-medium text-white transition hover:bg-white/15"
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-700 disabled:opacity-50"
+                                >
+                                    {loading ? 'Создаём...' : 'Создать задание'}
+                                </button>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
             </motion.div>
         </AnimatePresence>
     );

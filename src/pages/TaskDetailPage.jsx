@@ -52,7 +52,7 @@ const getSubmissionStatus = (deadline, latestSubmission) => {
         return {
             label: 'Не сдано',
             color: 'text-slate-300',
-            hint: deadline ? `Срок: ${formatDateTime(deadline)}` : 'Работа еще не отправлена'
+            hint: deadline ? `Срок сдачи: ${formatDateTime(deadline)}` : 'Работа еще не отправлена'
         };
     }
     const submittedAt = new Date(latestSubmission.created_at).getTime();
@@ -435,14 +435,11 @@ const TaskDetailPage = () => {
                 </button>
 
                 {/* Шапка задания */}
-                <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.02] to-white/[0.05] p-6 shadow-sm">
-                    <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-purple-500/20 blur-3xl" />
-                    <div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl" />
-                    <div className="relative z-10">
+                <div className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-6 shadow-sm">
+                    <div>
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="max-w-3xl">
                                 <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-purple-300">
-                                    <span>Задание #{task.task_number}</span>
                                     {discipline?.name && (
                                         <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 normal-case tracking-normal text-gray-300">
                                             {discipline.name}
@@ -497,7 +494,7 @@ const TaskDetailPage = () => {
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),340px]">
                     {/* Левая колонка: описание (с материалами) + комментарии */}
                     <div className="space-y-6">
-                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
+                        <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 md:p-6">
                             <h2 className="text-xl font-semibold text-white">Описание задания</h2>
                             <div className="mt-3">
                                 <RichTextContent
@@ -521,7 +518,7 @@ const TaskDetailPage = () => {
                         </section>
 
                         {/* Блок публичных комментариев */}
-                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
+                        <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 md:p-6">
                             {publicComments.length > 0 ? (
                                 <CommentThreadList
                                     title={`Комментарии (${publicComments.length})`}
@@ -564,7 +561,7 @@ const TaskDetailPage = () => {
 
                     {/* Правая колонка */}
                     <div className="space-y-6">
-                        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                        <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-5">
                             <div className="border-b border-white/10 pb-4">
                                 <div className="mb-2 text-xs uppercase tracking-wide text-gray-500">Создал</div>
                                 <div className="flex items-center gap-3">
@@ -602,7 +599,7 @@ const TaskDetailPage = () => {
                         {/* Блок сдачи работы для студента */}
                         {!isTeacher && (
                             <>
-                                <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 overflow-hidden gap-4" >
+                                <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 overflow-hidden gap-4">
                                     <div className="flex flex-wrap items-center justify-between gap-1">
                                         <div>
                                             <h2 className="text-xl font-semibold text-white">Сдача работы</h2>
@@ -664,7 +661,7 @@ const TaskDetailPage = () => {
                                     composerTriggerLabel="Добавить комментарий"
                                 />
                             ) : (
-                                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-gray-500">
+                                <div className="rounded-2xl border border-dashed border-white/10 bg-[#1A1A1C] p-6 text-center text-gray-500">
                                     Прикрепите работу, чтобы видеть личные комментарии.
                                 </div>
                             )

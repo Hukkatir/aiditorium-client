@@ -160,10 +160,10 @@ const DisciplineDetailPage = () => {
                     ← Назад к курсу
                 </button>
 
-                <section className="rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_34%),rgba(255,255,255,0.03)] p-6 md:p-8">
+                <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-6 md:p-8">
                     <div className="flex flex-wrap items-start justify-between gap-5">
                         <div className="max-w-3xl">
-                            <div className="text-xs uppercase tracking-[0.24em] text-sky-200/70">Дисциплина</div>
+                            <div className="text-xs uppercase tracking-[0.24em] text-purple-200/70">Дисциплина</div>
                             <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">{discipline.name}</h1>
                             <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
                                 {discipline.description || 'Описание дисциплины пока не заполнено.'}
@@ -200,9 +200,6 @@ const DisciplineDetailPage = () => {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h2 className="text-2xl font-semibold text-white">Задания</h2>
-                        <p className="mt-2 text-sm text-slate-500">
-                            Более спокойные и информативные карточки: короткое описание, баллы, дедлайн и количество материалов.
-                        </p>
                         {isArchived && canManage && (
                             <p className="mt-2 text-sm text-yellow-300">В архивном курсе нельзя создавать новые задания.</p>
                         )}
@@ -213,7 +210,7 @@ const DisciplineDetailPage = () => {
                             type="button"
                             onClick={() => setShowCreateTask(true)}
                             disabled={isArchived}
-                            className="rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-2xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             Создать задание
                         </button>
@@ -221,7 +218,7 @@ const DisciplineDetailPage = () => {
                 </div>
 
                 {tasks.length === 0 ? (
-                    <div className="rounded-[30px] border border-dashed border-white/10 px-6 py-14 text-center text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-white/10 px-6 py-14 text-center text-slate-500">
                         В этой дисциплине пока нет заданий.
                     </div>
                 ) : (
@@ -233,12 +230,11 @@ const DisciplineDetailPage = () => {
                                 <motion.div
                                     key={task.id}
                                     whileHover={{ y: -4 }}
-                                    className="cursor-pointer rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.14),_transparent_34%),rgba(255,255,255,0.03)] p-5 transition-all hover:border-sky-400/35 hover:bg-white/[0.05]"
+                                    className="cursor-pointer rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 transition-all hover:border-purple-400/30 hover:bg-[#1D1C24]"
                                     onClick={() => navigate(buildTaskPath(courseRef, discipline, task))}
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
-                                            <div className="text-xs uppercase tracking-[0.24em] text-sky-200/70">Задание #{task.task_number}</div>
                                             <h3 className="mt-3 text-xl font-semibold text-white">{task.name}</h3>
                                             <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-400">
                                                 {getRichTextExcerpt(task.description, 180) || 'Описание пока не заполнено.'}
@@ -246,14 +242,12 @@ const DisciplineDetailPage = () => {
                                         </div>
 
                                         <div className="flex items-start gap-2">
-                                            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-right">
-                                                <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Максимум</div>
+                                            <div className="rounded-2xl border border-purple-400/20 bg-purple-500/10 px-3 py-2 text-right">
+                                                <div className="text-xs uppercase tracking-[0.24em] text-purple-100/70">Баллы</div>
                                                 <div className="mt-1 text-lg font-semibold text-white">{Number(task.scores) || 100}</div>
                                             </div>
                                             {canManage && (
                                                 <ActionMenu
-                                                    showLabel
-                                                    buttonLabel="Действия"
                                                     buttonClassName="border border-white/10 bg-white/5"
                                                     items={[
                                                         {
@@ -283,7 +277,7 @@ const DisciplineDetailPage = () => {
                                         {task.deadline && (
                                             <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                                 <HiCalendar className="h-3.5 w-3.5" />
-                                                Сдать до {new Date(task.deadline).toLocaleDateString()}
+                                                Срок сдачи: {new Date(task.deadline).toLocaleDateString()}
                                             </span>
                                         )}
                                         <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
