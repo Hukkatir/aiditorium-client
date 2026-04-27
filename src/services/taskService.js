@@ -38,9 +38,10 @@ export const taskService = {
 
         for (const file of fileList) {
             const formData = new FormData();
-            formData.append('attachments[]', file);
+            formData.append('files[]', file);
 
-            results.push(await this.updateTask(taskId, formData));
+            const response = await apiClient.post(`/task/${taskId}/attachments`, formData);
+            results.push(response.data);
         }
 
         return results;
