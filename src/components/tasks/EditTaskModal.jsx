@@ -27,7 +27,6 @@ const appendTaskMaterials = (formData, files) => {
         return;
     }
 
-    formData.append('attachment', files[0]);
     files.forEach((file) => {
         formData.append('attachments[]', file);
     });

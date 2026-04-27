@@ -84,7 +84,7 @@ export const getTaskMaterials = (task) => {
     const materials = [];
     const seenIds = new Set();
 
-    (Array.isArray(task?.attachments) ? task.attachments : []).forEach((file) => {
+    const addMaterial = (file) => {
         const fileId = Number(file?.id);
 
         if (!fileId || seenIds.has(fileId)) {
@@ -93,7 +93,10 @@ export const getTaskMaterials = (task) => {
 
         seenIds.add(fileId);
         materials.push(file);
-    });
+    };
+
+    (Array.isArray(task?.attachments) ? task.attachments : []).forEach(addMaterial);
+    addMaterial(task?.attachment);
 
     if (task?.attachment_id && !seenIds.has(Number(task.attachment_id))) {
         materials.push({
