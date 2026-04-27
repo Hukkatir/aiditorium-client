@@ -5,7 +5,7 @@ import RichTextEditor from '../editor/RichTextEditor';
 import FileTileGrid from '../files/FileTileGrid';
 import { taskService } from '../../services/taskService';
 import { useToast } from '../../context/ToastContext';
-import { TASK_MATERIALS_MAX_TOTAL_BYTES, formatFileSize, getFilesTotalSize, getTaskMaterials } from '../../utils/fileUtils';
+import { REGULAR_FILE_MAX_BYTES, TASK_MATERIALS_MAX_TOTAL_BYTES, formatFileSize, getFilesOverSizeLimit, getFilesTotalSize, getFirstFileValidationError, getTaskMaterials } from '../../utils/fileUtils';
 
 const mergeUniqueFiles = (previousFiles, nextFiles) => {
     const seen = new Set(previousFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
@@ -35,7 +35,7 @@ const mapServerErrors = (serverErrors = {}) => ({
     scores: serverErrors.scores?.[0] || '',
     deadline: serverErrors.deadline?.[0] || '',
     description: serverErrors.description?.[0] || '',
-    attachments: serverErrors.attachments?.[0] || ''
+    attachments: getFirstFileValidationError(serverErrors)
 });
 
 const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
@@ -129,6 +129,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
         const trimmedScores = String(formData.scores || '').trim();
         const trimmedDeadline = String(formData.deadline || '').trim();
         const materialsTotalSize = getFilesTotalSize(existingMaterials) + getFilesTotalSize(newMaterials);
+        const oversizedMaterials = getFilesOverSizeLimit(newMaterials);
 
         if (!trimmedName) {
             nextErrors.name = 'Введите название задания.';
@@ -153,6 +154,9 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
 
         if (materialsTotalSize > TASK_MATERIALS_MAX_TOTAL_BYTES) {
             nextErrors.attachments = `Общий размер материалов не должен превышать ${formatFileSize(TASK_MATERIALS_MAX_TOTAL_BYTES)}. После сохранения будет ${formatFileSize(materialsTotalSize)}.`;
+        }
+        if (oversizedMaterials.length > 0) {
+            nextErrors.attachments = `Файл "${oversizedMaterials[0].name}" больше ${formatFileSize(REGULAR_FILE_MAX_BYTES)}.`;
         }
 
         return nextErrors;
@@ -203,7 +207,8 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                 setErrors(mapServerErrors(error.response.data.errors));
             }
 
-            const firstValidationError = Object.values(error.response?.data?.errors || {})?.[0]?.[0];
+            const serverErrors = error.response?.data?.errors || {};
+            const firstValidationError = getFirstFileValidationError(serverErrors) || Object.values(serverErrors)?.[0]?.[0];
             showToast('error', firstValidationError || error.response?.data?.message || 'Не удалось обновить задание');
         } finally {
             setLoading(false);

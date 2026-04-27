@@ -4,7 +4,7 @@ import { HiPaperClip, HiPlus, HiXMark } from 'react-icons/hi2';
 import RichTextEditor from '../editor/RichTextEditor';
 import { taskService } from '../../services/taskService';
 import { useToast } from '../../context/ToastContext';
-import { TASK_MATERIALS_MAX_TOTAL_BYTES, formatFileSize, getFilesTotalSize } from '../../utils/fileUtils';
+import { REGULAR_FILE_MAX_BYTES, TASK_MATERIALS_MAX_TOTAL_BYTES, formatFileSize, getFilesOverSizeLimit, getFilesTotalSize, getFirstFileValidationError } from '../../utils/fileUtils';
 
 const mergeUniqueFiles = (previousFiles, nextFiles) => {
     const seen = new Set(previousFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
@@ -35,6 +35,7 @@ const buildValidationErrors = (formData, materials = []) => {
     const trimmedScores = String(formData.scores || '').trim();
     const trimmedDeadline = String(formData.deadline || '').trim();
     const materialsTotalSize = getFilesTotalSize(materials);
+    const oversizedMaterials = getFilesOverSizeLimit(materials);
 
     if (!trimmedName) {
         nextErrors.name = 'Введите название задания.';
@@ -60,6 +61,9 @@ const buildValidationErrors = (formData, materials = []) => {
     if (materialsTotalSize > TASK_MATERIALS_MAX_TOTAL_BYTES) {
         nextErrors.attachments = `Общий размер материалов не должен превышать ${formatFileSize(TASK_MATERIALS_MAX_TOTAL_BYTES)}. Сейчас выбрано ${formatFileSize(materialsTotalSize)}.`;
     }
+    if (oversizedMaterials.length > 0) {
+        nextErrors.attachments = `Файл "${oversizedMaterials[0].name}" больше ${formatFileSize(REGULAR_FILE_MAX_BYTES)}.`;
+    }
 
     return nextErrors;
 };
@@ -69,7 +73,7 @@ const mapServerErrors = (serverErrors = {}) => ({
     scores: serverErrors.scores?.[0] || '',
     deadline: serverErrors.deadline?.[0] || '',
     description: serverErrors.description?.[0] || '',
-    attachments: serverErrors.attachments?.[0] || ''
+    attachments: getFirstFileValidationError(serverErrors)
 });
 
 const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId }) => {
@@ -179,7 +183,8 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                 setErrors(mapServerErrors(error.response.data.errors));
             }
 
-            const firstValidationError = Object.values(error.response?.data?.errors || {})?.[0]?.[0];
+            const serverErrors = error.response?.data?.errors || {};
+            const firstValidationError = getFirstFileValidationError(serverErrors) || Object.values(serverErrors)?.[0]?.[0];
             showToast('error', firstValidationError || error.response?.data?.message || 'Не удалось создать задание');
         } finally {
             setLoading(false);

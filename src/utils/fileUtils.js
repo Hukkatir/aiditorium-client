@@ -1,4 +1,5 @@
 export const TASK_MATERIALS_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+export const REGULAR_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
 export const getFileSizeBytes = (file = {}) => {
     const size = Number(file?.size ?? file?.size_bytes ?? file?.sizeBytes ?? 0);
@@ -6,6 +7,23 @@ export const getFileSizeBytes = (file = {}) => {
 };
 
 export const getFilesTotalSize = (files = []) => files.reduce((total, file) => total + getFileSizeBytes(file), 0);
+
+export const getFilesOverSizeLimit = (files = [], limit = REGULAR_FILE_MAX_BYTES) =>
+    files.filter((file) => getFileSizeBytes(file) > limit);
+
+export const getFirstFileValidationError = (serverErrors = {}) => {
+    const fileErrorEntry = Object.entries(serverErrors)
+        .find(([key, messages]) => (
+            key === 'file' ||
+            key === 'attachment' ||
+            key === 'attachments' ||
+            key === 'files' ||
+            key.startsWith('attachments.') ||
+            key.startsWith('files.')
+        ) && Array.isArray(messages) && messages[0]);
+
+    return fileErrorEntry?.[1]?.[0] || '';
+};
 
 export const formatFileSize = (bytes = 0) => {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
