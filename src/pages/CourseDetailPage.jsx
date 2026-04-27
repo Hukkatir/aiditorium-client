@@ -5,38 +5,46 @@ import {
     HiArchiveBox,
     HiArchiveBoxXMark,
     HiArrowPath,
+    HiBars3,
     HiCalendar,
     HiClipboard,
     HiClipboardDocumentCheck,
-    HiClock,
     HiLockClosed,
     HiLockOpen,
-    HiMiniRectangleStack,
-    HiPaperClip,
     HiPencil,
     HiPlus,
-    HiStar,
+    HiSquares2X2,
     HiTrash,
     HiUserCircle,
     HiUserGroup
 } from 'react-icons/hi2';
+import EditCourseModal from '../components/courses/EditCourseModal';
 import CreateDisciplineModal from '../components/disciplines/CreateDisciplineModal';
 import EditDisciplineModal from '../components/disciplines/EditDisciplineModal';
-import CreateTaskModal from '../components/tasks/CreateTaskModal';
-import EditTaskModal from '../components/tasks/EditTaskModal';
 import ActionMenu from '../components/layout/ActionMenu';
 import ConfirmModal from '../components/layout/ConfirmModal';
 import MainLayout from '../components/layout/MainLayout';
-import EditCourseModal from '../components/courses/EditCourseModal';
+import CreateTaskModal from '../components/tasks/CreateTaskModal';
+import EditTaskModal from '../components/tasks/EditTaskModal';
+import TaskCard from '../components/tasks/TaskCard';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import apiClient from '../services/apiClient';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
-import apiClient from '../services/apiClient';
+import { fileService } from '../services/fileService';
+import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
-import { buildCoursePath, buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
+import { extractCollection } from '../utils/apiUtils';
 import { getTaskMaterials } from '../utils/fileUtils';
-import { getRichTextExcerpt } from '../utils/richText';
+import { buildCoursePath, buildDisciplinePath } from '../utils/routeUtils';
+import {
+    getTaskCreatorName,
+    getTaskSubmissionStatus,
+    matchesTaskStatusFilter
+} from '../utils/taskPresentation';
+
+const emptyPaginatedResponse = { data: [] };
 
 const formatDate = (dateString) => {
     if (!dateString) {
@@ -51,8 +59,14 @@ const formatDate = (dateString) => {
 };
 
 const getRoleLabel = (role) => {
-    if (role === 'teacher') return 'Преподаватель';
-    if (role === 'student') return 'Учащийся';
+    if (role === 'teacher') {
+        return 'Преподаватель';
+    }
+
+    if (role === 'student') {
+        return 'Учащийся';
+    }
+
     return role || 'Учащийся';
 };
 
@@ -100,6 +114,10 @@ const CourseDetailPage = () => {
     const [showReopenConfirm, setShowReopenConfirm] = useState(false);
     const [showRemoveUserConfirm, setShowRemoveUserConfirm] = useState(false);
     const [userToRemove, setUserToRemove] = useState(null);
+    const [taskViewMode, setTaskViewMode] = useState('grid');
+    const [taskStatusFilter, setTaskStatusFilter] = useState('all');
+    const [latestSubmissionsByTask, setLatestSubmissionsByTask] = useState(new Map());
+    const [gradesByTask, setGradesByTask] = useState(new Map());
 
     const currentCourseParam = courseIdOrSlug || courseId;
     const currentRole = useMemo(() => getCurrentCourseRole(course, users, user), [course, users, user]);
@@ -120,8 +138,8 @@ const CourseDetailPage = () => {
         try {
             const courseData = await courseService.getCourse(currentCourseParam);
             const courseObject = courseData.course || courseData;
-
             setCourse(courseObject);
+
             const canonicalPath = buildCoursePath(courseObject);
             if (window.location.pathname !== canonicalPath) {
                 navigate(canonicalPath, { replace: true });
@@ -147,9 +165,56 @@ const CourseDetailPage = () => {
                 taskService.getTasks({ course_id: courseObject.id, per_page: 100 }).catch(() => ({ data: [] }))
             ]);
 
-            setDisciplines(disciplinesData.data || []);
-            setUsers(usersData.users || usersData.data || []);
-            setTasks(tasksData.data || []);
+            const nextDisciplines = disciplinesData.data || [];
+            const nextUsers = usersData.users || usersData.data || [];
+            const nextTasks = tasksData.data || [];
+            const nextRole = getCurrentCourseRole(courseObject, nextUsers, user);
+
+            setDisciplines(nextDisciplines);
+            setUsers(nextUsers);
+            setTasks(nextTasks);
+
+            if (nextRole !== 'teacher') {
+                const [filesData, gradesData] = await Promise.all([
+                    fileService.getMyFiles({ per_page: 200 }).catch((error) => {
+                        if (error.response?.status === 404) {
+                            return { files: emptyPaginatedResponse };
+                        }
+
+                        throw error;
+                    }),
+                    gradeService.getMyGrades(courseObject.id, 100).catch((error) => {
+                        if (error.response?.status === 404) {
+                            return emptyPaginatedResponse;
+                        }
+
+                        throw error;
+                    })
+                ]);
+
+                const submissionsMap = new Map();
+                extractCollection(filesData, 'files')
+                    .filter((file) => file.type === 'submission' && Number(file.course_id) === Number(courseObject.id))
+                    .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))
+                    .forEach((file) => {
+                        const taskId = Number(file.task_id);
+
+                        if (taskId && !submissionsMap.has(taskId)) {
+                            submissionsMap.set(taskId, file);
+                        }
+                    });
+
+                const gradesMap = new Map();
+                extractCollection(gradesData, 'grades').forEach((grade) => {
+                    gradesMap.set(Number(grade.task_id), grade);
+                });
+
+                setLatestSubmissionsByTask(submissionsMap);
+                setGradesByTask(gradesMap);
+            } else {
+                setLatestSubmissionsByTask(new Map());
+                setGradesByTask(new Map());
+            }
         } catch (error) {
             console.error(error);
             setCourse(null);
@@ -157,11 +222,38 @@ const CourseDetailPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [currentCourseParam, navigate, showToast]);
+    }, [currentCourseParam, navigate, showToast, user]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const taskCards = useMemo(
+        () => tasks
+            .map((task) => {
+                const discipline = disciplines.find((item) => Number(item.id) === Number(task.discipline_id));
+
+                if (!discipline) {
+                    return null;
+                }
+
+                const grade = gradesByTask.get(Number(task.id)) || null;
+                const latestSubmission = latestSubmissionsByTask.get(Number(task.id)) || null;
+                const status = isTeacher ? null : getTaskSubmissionStatus(task.deadline, latestSubmission);
+
+                return {
+                    task,
+                    discipline,
+                    creatorName: getTaskCreatorName(task, users),
+                    materialsCount: getTaskMaterials(task).length,
+                    grade,
+                    status
+                };
+            })
+            .filter(Boolean)
+            .filter((item) => matchesTaskStatusFilter(item.status, taskStatusFilter)),
+        [disciplines, gradesByTask, isTeacher, latestSubmissionsByTask, taskStatusFilter, tasks, users]
+    );
 
     const handleCopy = (text, setter) => {
         navigator.clipboard.writeText(text);
@@ -268,7 +360,11 @@ const CourseDetailPage = () => {
             <MainLayout>
                 <div className="py-20 text-center">
                     <p className="text-xl text-gray-400">Курс не найден</p>
-                    <button onClick={() => navigate('/courses')} className="mt-4 text-purple-400 transition hover:text-purple-300">
+                    <button
+                        type="button"
+                        onClick={() => navigate('/courses')}
+                        className="mt-4 text-purple-400 transition hover:text-purple-300"
+                    >
                         ← Вернуться к курсам
                     </button>
                 </div>
@@ -285,6 +381,7 @@ const CourseDetailPage = () => {
                     ) : (
                         <div className="h-full w-full bg-gradient-to-br from-purple-600 to-blue-600" />
                     )}
+
                     <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6">
                         <h1 className="mb-2 text-4xl font-bold text-white">{course.name}</h1>
                         <p className="max-w-2xl text-lg text-gray-200">{course.description}</p>
@@ -313,7 +410,11 @@ const CourseDetailPage = () => {
                                 <div className="flex items-center gap-1 rounded-lg bg-white/5 px-3 py-1">
                                     <span className="text-xs text-gray-400">Студенты:</span>
                                     <code className="font-mono text-sm text-purple-300">{course.invite_code}</code>
-                                    <button type="button" onClick={() => handleCopy(course.invite_code, setCopiedInvite)} className="rounded p-1 transition hover:bg-white/10">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleCopy(course.invite_code, setCopiedInvite)}
+                                        className="rounded p-1 transition hover:bg-white/10"
+                                    >
                                         {copiedInvite ? <HiClipboardDocumentCheck className="h-4 w-4 text-green-400" /> : <HiClipboard className="h-4 w-4" />}
                                     </button>
                                     <button
@@ -329,7 +430,11 @@ const CourseDetailPage = () => {
                                     <span className="text-xs text-gray-400">Учителя:</span>
                                     <code className="font-mono text-sm text-purple-300">{course.invite_code_teacher || 'Код не создан'}</code>
                                     {course.invite_code_teacher && (
-                                        <button type="button" onClick={() => handleCopy(course.invite_code_teacher, setCopiedTeacherInvite)} className="rounded p-1 transition hover:bg-white/10">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopy(course.invite_code_teacher, setCopiedTeacherInvite)}
+                                            className="rounded p-1 transition hover:bg-white/10"
+                                        >
                                             {copiedTeacherInvite ? <HiClipboardDocumentCheck className="h-4 w-4 text-green-400" /> : <HiClipboard className="h-4 w-4" />}
                                         </button>
                                     )}
@@ -346,28 +451,48 @@ const CourseDetailPage = () => {
 
                         {isTeacher && (
                             <div className="flex flex-wrap items-center gap-2">
-                                <button type="button" onClick={() => setShowEditCourse(true)} className="rounded-lg bg-purple-600/20 p-2 transition hover:bg-purple-600/30">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditCourse(true)}
+                                    className="rounded-lg bg-purple-600/20 p-2 transition hover:bg-purple-600/30"
+                                >
                                     <HiPencil className="h-4 w-4" />
                                 </button>
 
                                 {isCreator && (
                                     <>
                                         {!course.is_closed ? (
-                                            <button type="button" onClick={() => setShowCloseConfirm(true)} className="rounded-lg bg-yellow-600/20 p-2 transition hover:bg-yellow-600/30">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCloseConfirm(true)}
+                                                className="rounded-lg bg-yellow-600/20 p-2 transition hover:bg-yellow-600/30"
+                                            >
                                                 <HiLockClosed className="h-4 w-4" />
                                             </button>
                                         ) : (
-                                            <button type="button" onClick={() => setShowReopenConfirm(true)} className="rounded-lg bg-green-600/20 p-2 transition hover:bg-green-600/30">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowReopenConfirm(true)}
+                                                className="rounded-lg bg-green-600/20 p-2 transition hover:bg-green-600/30"
+                                            >
                                                 <HiLockOpen className="h-4 w-4" />
                                             </button>
                                         )}
 
                                         {course.status !== 'archived' ? (
-                                            <button type="button" onClick={() => setShowArchiveConfirm(true)} className="rounded-lg bg-orange-600/20 p-2 transition hover:bg-orange-600/30">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowArchiveConfirm(true)}
+                                                className="rounded-lg bg-orange-600/20 p-2 transition hover:bg-orange-600/30"
+                                            >
                                                 <HiArchiveBox className="h-4 w-4" />
                                             </button>
                                         ) : (
-                                            <button type="button" onClick={() => setShowRestoreConfirm(true)} className="rounded-lg bg-blue-600/20 p-2 transition hover:bg-blue-600/30">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowRestoreConfirm(true)}
+                                                className="rounded-lg bg-blue-600/20 p-2 transition hover:bg-blue-600/30"
+                                            >
                                                 <HiArchiveBoxXMark className="h-4 w-4" />
                                             </button>
                                         )}
@@ -375,7 +500,11 @@ const CourseDetailPage = () => {
                                 )}
 
                                 {isAdmin && (
-                                    <button type="button" onClick={() => setShowDeleteConfirm(true)} className="rounded-lg bg-red-600/20 p-2 transition hover:bg-red-600/30">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDeleteConfirm(true)}
+                                        className="rounded-lg bg-red-600/20 p-2 transition hover:bg-red-600/30"
+                                    >
                                         <HiTrash className="h-4 w-4" />
                                     </button>
                                 )}
@@ -391,7 +520,11 @@ const CourseDetailPage = () => {
                                 key={tab.id}
                                 type="button"
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`whitespace-nowrap border-b-2 px-1 pb-3 font-medium transition ${activeTab === tab.id ? 'border-purple-500 text-purple-400' : 'border-transparent text-gray-400 hover:text-white'}`}
+                                className={`whitespace-nowrap border-b-2 px-1 pb-3 font-medium transition ${
+                                    activeTab === tab.id
+                                        ? 'border-purple-500 text-purple-400'
+                                        : 'border-transparent text-gray-400 hover:text-white'
+                                }`}
                             >
                                 {tab.label}
                                 <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs">{tab.count}</span>
@@ -410,6 +543,7 @@ const CourseDetailPage = () => {
                                         <p className="mt-1 text-sm text-yellow-300">В архивном курсе нельзя создавать новые дисциплины.</p>
                                     )}
                                 </div>
+
                                 {isTeacher && (
                                     <button
                                         type="button"
@@ -434,6 +568,7 @@ const CourseDetailPage = () => {
                                                     <p className="line-clamp-2 text-sm text-gray-400">{discipline.description}</p>
                                                     <div className="mt-3 text-xs text-gray-500">Часов: {discipline.hours || 0}</div>
                                                 </div>
+
                                                 {isTeacher && (
                                                     <ActionMenu
                                                         buttonClassName="border border-white/10 bg-white/5"
@@ -477,92 +612,114 @@ const CourseDetailPage = () => {
 
                     {activeTab === 'tasks' && (
                         <motion.div key="tasks" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                                <h2 className="text-2xl font-semibold">Задания</h2>
-                                {isTeacher && (
-                                    <p className="text-sm text-slate-500">
-                                        Создание задания доступно из меню дисциплины.
-                                    </p>
-                                )}
-                            </div>
-                            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-slate-300">
-                                <p className="max-w-2xl text-slate-400">
-                                    Все задания курса собраны в одной ленте: видно дисциплину, срок сдачи, баллы и материалы.
-                                </p>
-                                <div className="rounded-2xl border border-purple-400/15 bg-purple-500/10 px-4 py-2 text-purple-100">
-                                    Всего заданий: <span className="font-semibold">{tasks.length}</span>
+                            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                                <div>
+                                    <h2 className="text-2xl font-semibold">Задания</h2>
+                                    {isTeacher && (
+                                        <p className="mt-1 text-sm text-slate-500">
+                                            Создание задания доступно из меню дисциплины.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {!isTeacher && (
+                                        <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+                                            {[
+                                                { id: 'all', label: 'Все' },
+                                                { id: 'submitted', label: 'Сданные' },
+                                                { id: 'not_submitted', label: 'Не сданные' }
+                                            ].map((filter) => (
+                                                <button
+                                                    key={filter.id}
+                                                    type="button"
+                                                    onClick={() => setTaskStatusFilter(filter.id)}
+                                                    className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                                                        taskStatusFilter === filter.id
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {filter.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTaskViewMode('grid')}
+                                            className={`rounded-xl p-2.5 transition ${
+                                                taskViewMode === 'grid'
+                                                    ? 'bg-purple-600 text-white'
+                                                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                            }`}
+                                            aria-label="Плитка"
+                                            title="Плитка"
+                                        >
+                                            <HiSquares2X2 className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setTaskViewMode('list')}
+                                            className={`rounded-xl p-2.5 transition ${
+                                                taskViewMode === 'list'
+                                                    ? 'bg-purple-600 text-white'
+                                                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                            }`}
+                                            aria-label="Список"
+                                            title="Список"
+                                        >
+                                            <HiBars3 className="h-5 w-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-purple-400/15 bg-purple-500/10 px-4 py-2 text-sm text-purple-100">
+                                        Всего заданий: <span className="font-semibold">{tasks.length}</span>
+                                    </div>
                                 </div>
                             </div>
-                            {tasks.length === 0 ? (
-                                <p className="text-gray-500">В этом курсе пока нет заданий</p>
-                            ) : (
-                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                                    {tasks.map((task) => {
-                                        const discipline = disciplines.find((item) => item.id === task.discipline_id);
-                                        const materials = getTaskMaterials(task);
-                                        const taskSummary = getRichTextExcerpt(task.description, 140);
 
-                                        return (
-                                            <div
-                                                key={task.id}
-                                                className="group cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 transition duration-200 hover:-translate-y-1 hover:border-purple-400/30 hover:bg-[#1D1C24]"
-                                                onClick={() => discipline && navigate(buildTaskPath(course, discipline, task))}
-                                            >
-                                                <div className="mb-3 flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        {discipline && (
-                                                            <span className="mb-2 inline-flex items-center gap-2 rounded-full border border-purple-400/15 bg-purple-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-purple-200">
-                                                                <HiMiniRectangleStack className="h-3.5 w-3.5" />
-                                                                {discipline.name}
-                                                            </span>
-                                                        )}
-                                                        <h3 className="text-lg font-semibold text-white">{task.name}</h3>
-                                                    </div>
-                                                    {isTeacher && (
-                                                        <ActionMenu
-                                                            buttonClassName="border border-white/10 bg-white/5"
-                                                            items={[
-                                                                {
-                                                                    label: 'Редактировать',
-                                                                    icon: HiPencil,
-                                                                    onClick: () => {
-                                                                        setSelectedTask(task);
-                                                                        setShowEditTask(true);
-                                                                    }
-                                                                },
-                                                                {
-                                                                    label: 'Удалить',
-                                                                    icon: HiTrash,
-                                                                    danger: true,
-                                                                    onClick: () => {
-                                                                        setSelectedTask(task);
-                                                                        setShowDeleteTaskConfirm(true);
-                                                                    }
-                                                                }
-                                                            ]}
-                                                        />
-                                                    )}
-                                                </div>
-                                                <p className="mb-4 min-h-[66px] text-sm leading-6 text-slate-300">
-                                                    {taskSummary || 'Откройте задание, чтобы посмотреть полное описание и материалы.'}
-                                                </p>
-                                                <div className="flex flex-wrap items-center gap-2 border-t border-white/8 pt-4 text-xs text-gray-400">
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5">
-                                                        <HiStar className="h-3.5 w-3.5 text-purple-300" />
-                                                        {task.scores ?? 100} баллов
-                                                    </span>
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5">
-                                                        <HiPaperClip className="h-3.5 w-3.5 text-purple-300" />
-                                                        {materials.length > 0 ? `${materials.length} файл(ов)` : 'Без материалов'}
-                                                    </span>
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.04] px-3 py-1.5">
-                                                        <HiClock className="h-3.5 w-3.5 text-purple-300" />
-                                                        {task.deadline ? formatDate(task.deadline) : 'Без срока сдачи'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                            {taskCards.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-white/10 px-6 py-14 text-center text-slate-500">
+                                    В этом курсе пока нет заданий.
+                                </div>
+                            ) : (
+                                <div className={taskViewMode === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3' : 'space-y-4'}>
+                                    {taskCards.map(({ task, discipline, creatorName, materialsCount, grade, status }) => (
+                                        <TaskCard
+                                            key={task.id}
+                                            task={task}
+                                            course={course}
+                                            discipline={discipline}
+                                            layout={taskViewMode}
+                                            creatorName={creatorName}
+                                            disciplineLabel={discipline.name}
+                                            materialsCount={materialsCount}
+                                            grade={grade}
+                                            status={status}
+                                            actionItems={isTeacher ? [
+                                                {
+                                                    label: 'Редактировать',
+                                                    icon: HiPencil,
+                                                    onClick: () => {
+                                                        setSelectedTask(task);
+                                                        setShowEditTask(true);
+                                                    }
+                                                },
+                                                {
+                                                    label: 'Удалить',
+                                                    icon: HiTrash,
+                                                    danger: true,
+                                                    onClick: () => {
+                                                        setSelectedTask(task);
+                                                        setShowDeleteTaskConfirm(true);
+                                                    }
+                                                }
+                                            ] : []}
+                                        />
+                                    ))}
                                 </div>
                             )}
                         </motion.div>
@@ -591,8 +748,11 @@ const CourseDetailPage = () => {
                                                     <p className="truncate text-sm text-gray-400">{item.email}</p>
                                                 </div>
                                             </div>
+
                                             <div className="flex items-center gap-4">
-                                                <span className="rounded-full bg-purple-600/20 px-2 py-1 text-xs text-purple-300">{getRoleLabel(item.pivot?.role)}</span>
+                                                <span className="rounded-full bg-purple-600/20 px-2 py-1 text-xs text-purple-300">
+                                                    {getRoleLabel(item.pivot?.role)}
+                                                </span>
                                                 {isCreator && item.id !== user?.id && (
                                                     <button
                                                         type="button"
@@ -669,14 +829,77 @@ const CourseDetailPage = () => {
                     fetchData();
                 }}
             />
-            <ConfirmModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} onConfirm={handleDeleteCourse} title="Удаление курса" message="Вы уверены? Это действие необратимо." confirmText="Удалить" />
-            <ConfirmModal isOpen={showDeleteDisciplineConfirm} onClose={() => setShowDeleteDisciplineConfirm(false)} onConfirm={handleDeleteDiscipline} title="Удаление дисциплины" message={`Удалить дисциплину ${selectedDiscipline?.name || ''}?`} confirmText="Удалить" />
-            <ConfirmModal isOpen={showDeleteTaskConfirm} onClose={() => { setShowDeleteTaskConfirm(false); setSelectedTask(null); }} onConfirm={handleDeleteTask} title="Удаление задания" message={`Удалить задание ${selectedTask?.name || ''}?`} confirmText="Удалить" />
-            <ConfirmModal isOpen={showArchiveConfirm} onClose={() => setShowArchiveConfirm(false)} onConfirm={() => runCourseAction(courseService.archiveCourse, 'Курс архивирован', setShowArchiveConfirm)} title="Архивация курса" message="Курс будет перемещён в архив." confirmText="Архивировать" />
-            <ConfirmModal isOpen={showRestoreConfirm} onClose={() => setShowRestoreConfirm(false)} onConfirm={() => runCourseAction(courseService.restoreCourse, 'Курс восстановлен', setShowRestoreConfirm)} title="Восстановление курса" message="Курс будет восстановлен из архива." confirmText="Восстановить" />
-            <ConfirmModal isOpen={showCloseConfirm} onClose={() => setShowCloseConfirm(false)} onConfirm={() => runCourseAction(courseService.closeCourse, 'Курс закрыт для новых участников', setShowCloseConfirm)} title="Закрытие курса" message="Новые участники не смогут вступить в курс." confirmText="Закрыть" />
-            <ConfirmModal isOpen={showReopenConfirm} onClose={() => setShowReopenConfirm(false)} onConfirm={() => runCourseAction(courseService.reopenCourse, 'Курс снова открыт для новых участников', setShowReopenConfirm)} title="Открытие курса" message="Новые участники снова смогут вступить в курс." confirmText="Открыть" />
-            <ConfirmModal isOpen={showRemoveUserConfirm} onClose={() => { setShowRemoveUserConfirm(false); setUserToRemove(null); }} onConfirm={handleRemoveUser} title="Удаление участника" message={`Удалить ${userToRemove?.name || 'этого участника'} из курса?`} confirmText="Удалить" />
+
+            <ConfirmModal
+                isOpen={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={handleDeleteCourse}
+                title="Удаление курса"
+                message="Вы уверены? Это действие необратимо."
+                confirmText="Удалить"
+            />
+            <ConfirmModal
+                isOpen={showDeleteDisciplineConfirm}
+                onClose={() => setShowDeleteDisciplineConfirm(false)}
+                onConfirm={handleDeleteDiscipline}
+                title="Удаление дисциплины"
+                message={`Удалить дисциплину ${selectedDiscipline?.name || ''}?`}
+                confirmText="Удалить"
+            />
+            <ConfirmModal
+                isOpen={showDeleteTaskConfirm}
+                onClose={() => {
+                    setShowDeleteTaskConfirm(false);
+                    setSelectedTask(null);
+                }}
+                onConfirm={handleDeleteTask}
+                title="Удаление задания"
+                message={`Удалить задание ${selectedTask?.name || ''}?`}
+                confirmText="Удалить"
+            />
+            <ConfirmModal
+                isOpen={showArchiveConfirm}
+                onClose={() => setShowArchiveConfirm(false)}
+                onConfirm={() => runCourseAction(courseService.archiveCourse, 'Курс архивирован', setShowArchiveConfirm)}
+                title="Архивация курса"
+                message="Курс будет перемещён в архив."
+                confirmText="Архивировать"
+            />
+            <ConfirmModal
+                isOpen={showRestoreConfirm}
+                onClose={() => setShowRestoreConfirm(false)}
+                onConfirm={() => runCourseAction(courseService.restoreCourse, 'Курс восстановлен', setShowRestoreConfirm)}
+                title="Восстановление курса"
+                message="Курс будет восстановлен из архива."
+                confirmText="Восстановить"
+            />
+            <ConfirmModal
+                isOpen={showCloseConfirm}
+                onClose={() => setShowCloseConfirm(false)}
+                onConfirm={() => runCourseAction(courseService.closeCourse, 'Курс закрыт для новых участников', setShowCloseConfirm)}
+                title="Закрытие курса"
+                message="Новые участники не смогут вступить в курс."
+                confirmText="Закрыть"
+            />
+            <ConfirmModal
+                isOpen={showReopenConfirm}
+                onClose={() => setShowReopenConfirm(false)}
+                onConfirm={() => runCourseAction(courseService.reopenCourse, 'Курс снова открыт для новых участников', setShowReopenConfirm)}
+                title="Открытие курса"
+                message="Новые участники снова смогут вступить в курс."
+                confirmText="Открыть"
+            />
+            <ConfirmModal
+                isOpen={showRemoveUserConfirm}
+                onClose={() => {
+                    setShowRemoveUserConfirm(false);
+                    setUserToRemove(null);
+                }}
+                onConfirm={handleRemoveUser}
+                title="Удаление участника"
+                message={`Удалить ${userToRemove?.name || 'этого участника'} из курса?`}
+                confirmText="Удалить"
+            />
         </MainLayout>
     );
 };

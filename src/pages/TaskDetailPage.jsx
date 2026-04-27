@@ -515,7 +515,7 @@ const TaskDetailPage = () => {
                 </div>
 
                 {/* Основная сетка */}
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),340px]">
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),380px]">
                     {/* Левая колонка: описание (с материалами) + комментарии */}
                     <div className="space-y-6">
                         <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 md:p-6">
@@ -543,43 +543,24 @@ const TaskDetailPage = () => {
 
                         {/* Блок публичных комментариев */}
                         <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 md:p-6">
-                            {publicComments.length > 0 ? (
-                                <CommentThreadList
-                                    title={`Комментарии (${publicComments.length})`}
-                                    description="Комментарии видны всем участникам курса."
-                                    comments={publicComments}
-                                    currentUserId={user?.id}
-                                    onCreate={handleCreatePublicComment}
-                                    onReply={handleReplyToPublicComment}
-                                    emptyMessage="Пока никто не оставил комментарий по этому заданию."
-                                    createPlaceholder="Напишите комментарий..."
-                                    createLabel="Отправить"
-                                    loading={commentsLoading}
-                                    scopeLabel="Публично"
-                                    variant="public"
-                                    composerMode="toggle"
-                                    composerPosition="bottom"
-                                    composerTriggerLabel="Добавить комментарий"
-                                />
-                            ) : (
-                                <CommentThreadList
-                                    title="Комментарии"
-                                    description="Комментарии видны всем участникам курса."
-                                    comments={[]}
-                                    currentUserId={user?.id}
-                                    onCreate={handleCreatePublicComment}
-                                    onReply={handleReplyToPublicComment}
-                                    emptyMessage="Пока никто не оставил комментарий."
-                                    createPlaceholder="Напишите комментарий..."
-                                    createLabel="Отправить"
-                                    loading={commentsLoading}
-                                    scopeLabel="Публично"
-                                    variant="public"
-                                    composerMode="toggle"
-                                    composerPosition="bottom"
-                                    composerTriggerLabel="Добавить комментарий"
-                                />
-                            )}
+                            <CommentThreadList
+                                title="Комментарии"
+                                description=""
+                                comments={publicComments}
+                                currentUserId={user?.id}
+                                onCreate={handleCreatePublicComment}
+                                onReply={handleReplyToPublicComment}
+                                emptyMessage="Пока никто не оставил комментарий."
+                                createPlaceholder="Напишите комментарий..."
+                                createLabel="Отправить"
+                                loading={commentsLoading}
+                                scopeLabel="Публично"
+                                variant="public"
+                                composerMode="toggle"
+                                composerPosition="bottom"
+                                composerTriggerLabel="Добавить комментарий"
+                                hideEmptyState
+                            />
                         </section>
                     </div>
 
@@ -623,15 +604,15 @@ const TaskDetailPage = () => {
                         {/* Блок сдачи работы для студента */}
                         {!isTeacher && (
                             <>
-                                <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 overflow-hidden gap-4">
-                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#1A1A1C] p-5">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
                                             <h2 className="text-xl font-semibold text-white">Сдача работы</h2>
                                         </div>
                                         <button
                                             type="button"
                                             onClick={() => setShowSubmitModal(true)}
-                                            className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-500"
+                                            className="w-full rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-500 sm:w-auto"
                                         >
                                             Прикрепить файлы
                                         </button>
@@ -646,12 +627,13 @@ const TaskDetailPage = () => {
                                         </div>
                                     )}
 
-                                    <div className="mt-5 max-h-[360px] overflow-y-auto pr-1">
+                                    <div className="mt-5 max-h-[280px] overflow-y-auto rounded-xl border border-white/10 bg-black/10 p-2 pr-1">
                                         <FileTileGrid
                                             files={ownSubmissions}
                                             emptyMessage="Вы еще не отправляли файлы."
                                             onDownload={handleSubmissionDownload}
                                             onRemove={handleRemoveSubmission}
+                                            compact
                                         />
                                     </div>
 
@@ -665,29 +647,24 @@ const TaskDetailPage = () => {
                         )}
                         {/* Личные комментарии */}
                         {!isTeacher && (
-                            latestSubmission ? (
-                                <CommentThreadList
-                                    title="Личные комментарии"
-                                    description="Эти сообщения видны только вам и преподавателю."
-                                    comments={privateComments}
-                                    currentUserId={user?.id}
-                                    onCreate={handleCreatePrivateComment}
-                                    onReply={handleReplyToPrivateComment}
-                                    emptyMessage="Личная переписка по вашей работе пока не началась."
-                                    createPlaceholder="Напишите личный комментарий..."
-                                    createLabel="Отправить"
-                                    loading={commentsLoading}
-                                    scopeLabel="Приватно"
-                                    variant="private"
-                                    composerMode="toggle"
-                                    composerPosition="bottom"
-                                    composerTriggerLabel="Добавить комментарий"
-                                />
-                            ) : (
-                                <div className="rounded-2xl border border-dashed border-white/10 bg-[#1A1A1C] p-6 text-center text-gray-500">
-                                    Прикрепите работу, чтобы видеть личные комментарии.
-                                </div>
-                            )
+                            <CommentThreadList
+                                title="Личные комментарии"
+                                description=""
+                                comments={latestSubmission ? privateComments : []}
+                                currentUserId={user?.id}
+                                onCreate={latestSubmission ? handleCreatePrivateComment : null}
+                                onReply={latestSubmission ? handleReplyToPrivateComment : null}
+                                emptyMessage="Личная переписка по вашей работе пока не началась."
+                                createPlaceholder="Напишите личный комментарий..."
+                                createLabel="Отправить"
+                                loading={commentsLoading}
+                                scopeLabel="Приватно"
+                                variant="private"
+                                composerMode="toggle"
+                                composerPosition="bottom"
+                                composerTriggerLabel="Добавить комментарий"
+                                hideEmptyState
+                            />
                         )}
                     </div>
                 </div>

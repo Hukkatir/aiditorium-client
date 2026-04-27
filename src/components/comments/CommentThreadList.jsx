@@ -66,7 +66,7 @@ const CommentItem = ({ comment, currentUserId, onReply, replyEnabled, styles }) 
 
             <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-300">{comment.body}</p>
 
-            {replyEnabled && (
+            {replyEnabled && onReply && (
                 <div className="mt-3">
                     {!isReplyOpen ? (
                         <button
@@ -129,7 +129,8 @@ const CommentThreadList = ({
     scopeLabel = '',
     composerMode = 'always',
     composerPosition = 'top',
-    composerTriggerLabel = 'Добавить комментарий'
+    composerTriggerLabel = 'Добавить комментарий',
+    hideEmptyState = false
 }) => {
     const sortedComments = useMemo(
         () => [...comments].sort((left, right) => new Date(left.created_at) - new Date(right.created_at)),
@@ -192,9 +193,11 @@ const CommentThreadList = ({
     const commentsBlock = loading ? (
         <div className="py-8 text-center text-sm text-slate-500">Загружаем комментарии...</div>
     ) : sortedComments.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
-            {emptyMessage}
-        </div>
+        hideEmptyState ? null : (
+            <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+                {emptyMessage}
+            </div>
+        )
     ) : (
         <div className="space-y-3">
             {sortedComments.map((comment) => (

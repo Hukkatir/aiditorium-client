@@ -1,20 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    HiCalendar,
+    HiBars3,
     HiClock,
-    HiPaperClip,
     HiPencil,
-    HiStar,
+    HiSquares2X2,
     HiTrash
 } from 'react-icons/hi2';
 import EditDisciplineModal from '../components/disciplines/EditDisciplineModal';
-import CreateTaskModal from '../components/tasks/CreateTaskModal';
-import EditTaskModal from '../components/tasks/EditTaskModal';
-import ActionMenu from '../components/layout/ActionMenu';
 import ConfirmModal from '../components/layout/ConfirmModal';
 import MainLayout from '../components/layout/MainLayout';
+import CreateTaskModal from '../components/tasks/CreateTaskModal';
+import EditTaskModal from '../components/tasks/EditTaskModal';
+import TaskCard from '../components/tasks/TaskCard';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { courseService } from '../services/courseService';
@@ -24,22 +22,14 @@ import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
 import { extractCollection } from '../utils/apiUtils';
 import { getTaskMaterials } from '../utils/fileUtils';
-import { getRichTextExcerpt } from '../utils/richText';
-import { buildCoursePath, buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
+import { buildCoursePath, buildDisciplinePath } from '../utils/routeUtils';
+import {
+    getTaskCreatorName,
+    getTaskSubmissionStatus,
+    matchesTaskStatusFilter
+} from '../utils/taskPresentation';
 
 const emptyPaginatedResponse = { data: [] };
-
-const formatDate = (dateString) => {
-    if (!dateString) {
-        return 'Без срока сдачи';
-    }
-
-    return new Date(dateString).toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-};
 
 const getCurrentCourseRole = (course, users, user) => {
     if (!course || !user) {
@@ -51,39 +41,6 @@ const getCurrentCourseRole = (course, users, user) => {
     }
 
     return users.find((item) => Number(item.id) === Number(user.id))?.pivot?.role || null;
-};
-
-const getTaskStatus = (deadline, latestSubmission) => {
-    if (!latestSubmission) {
-        return {
-            label: 'Не сдано',
-            className: 'bg-white/10 text-slate-300'
-        };
-    }
-
-    const deadlineTimestamp = deadline ? new Date(deadline).getTime() : null;
-    const submittedAt = new Date(latestSubmission.created_at).getTime();
-    const isLate = deadlineTimestamp && submittedAt > deadlineTimestamp;
-
-    if (isLate) {
-        return {
-            label: 'Сдано с опозданием',
-            className: 'bg-amber-500/10 text-amber-200'
-        };
-    }
-
-    return {
-        label: 'Сдано',
-        className: 'bg-emerald-500/10 text-emerald-200'
-    };
-};
-
-const getCreatorName = (task, courseUsers) => {
-    if (task.user?.name) {
-        return task.user.name;
-    }
-
-    return courseUsers.find((item) => Number(item.id) === Number(task.user_id))?.name || 'Неизвестно';
 };
 
 const DisciplineDetailPage = () => {
@@ -104,6 +61,7 @@ const DisciplineDetailPage = () => {
     const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
     const [viewMode, setViewMode] = useState('grid');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [latestSubmissionsByTask, setLatestSubmissionsByTask] = useState(new Map());
     const [gradesByTask, setGradesByTask] = useState(new Map());
 
@@ -122,7 +80,11 @@ const DisciplineDetailPage = () => {
             const courseObject = courseData.course || courseData;
 
             const [tasksData, usersData] = await Promise.all([
-                taskService.getTasks({ course_id: disciplineObject.course_id, discipline_id: disciplineObject.id, per_page: 100 }).catch(() => ({ data: [] })),
+                taskService.getTasks({
+                    course_id: disciplineObject.course_id,
+                    discipline_id: disciplineObject.id,
+                    per_page: 100
+                }).catch(() => ({ data: [] })),
                 courseService.getCourseUsers(courseObject.id).catch(() => ({ users: [] }))
             ]);
 
@@ -196,22 +158,22 @@ const DisciplineDetailPage = () => {
     }, [fetchData]);
 
     const taskCards = useMemo(
-        () => tasks.map((task) => {
-            const materialsCount = getTaskMaterials(task).length;
-            const creatorName = getCreatorName(task, courseUsers);
-            const grade = gradesByTask.get(Number(task.id)) || null;
-            const latestSubmission = latestSubmissionsByTask.get(Number(task.id)) || null;
-            const status = canManage ? null : getTaskStatus(task.deadline, latestSubmission);
+        () => tasks
+            .map((task) => {
+                const grade = gradesByTask.get(Number(task.id)) || null;
+                const latestSubmission = latestSubmissionsByTask.get(Number(task.id)) || null;
+                const status = canManage ? null : getTaskSubmissionStatus(task.deadline, latestSubmission);
 
-            return {
-                task,
-                materialsCount,
-                creatorName,
-                grade,
-                status
-            };
-        }),
-        [canManage, courseUsers, gradesByTask, latestSubmissionsByTask, tasks]
+                return {
+                    task,
+                    creatorName: getTaskCreatorName(task, courseUsers),
+                    materialsCount: getTaskMaterials(task).length,
+                    grade,
+                    status
+                };
+            })
+            .filter((item) => matchesTaskStatusFilter(item.status, statusFilter)),
+        [canManage, courseUsers, gradesByTask, latestSubmissionsByTask, statusFilter, tasks]
     );
 
     const handleDeleteDiscipline = async () => {
@@ -288,7 +250,7 @@ const DisciplineDetailPage = () => {
                 <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-6 md:p-8">
                     <div className="flex flex-wrap items-start justify-between gap-5">
                         <div className="max-w-3xl">
-                            <div className="text-xs uppercase tracking-[0.24em] text-purple-200/70">Дисциплина</div>
+                            <div className="text-sm text-purple-200/80">Дисциплина</div>
                             <h1 className="mt-4 text-3xl font-semibold text-white md:text-5xl">{discipline.name}</h1>
                             <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
                                 {discipline.description || 'Описание дисциплины пока не заполнено.'}
@@ -331,28 +293,55 @@ const DisciplineDetailPage = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
+                        {!canManage && (
+                            <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+                                {[
+                                    { id: 'all', label: 'Все' },
+                                    { id: 'submitted', label: 'Сданные' },
+                                    { id: 'not_submitted', label: 'Не сданные' }
+                                ].map((filter) => (
+                                    <button
+                                        key={filter.id}
+                                        type="button"
+                                        onClick={() => setStatusFilter(filter.id)}
+                                        className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                                            statusFilter === filter.id
+                                                ? 'bg-purple-600 text-white'
+                                                : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                        }`}
+                                    >
+                                        {filter.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
                             <button
                                 type="button"
                                 onClick={() => setViewMode('grid')}
-                                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                                className={`rounded-xl p-2.5 transition ${
                                     viewMode === 'grid'
                                         ? 'bg-purple-600 text-white'
                                         : 'text-slate-300 hover:bg-white/5 hover:text-white'
                                 }`}
+                                aria-label="Плитка"
+                                title="Плитка"
                             >
-                                Плитка
+                                <HiSquares2X2 className="h-5 w-5" />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setViewMode('list')}
-                                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                                className={`rounded-xl p-2.5 transition ${
                                     viewMode === 'list'
                                         ? 'bg-purple-600 text-white'
                                         : 'text-slate-300 hover:bg-white/5 hover:text-white'
                                 }`}
+                                aria-label="Список"
+                                title="Список"
                             >
-                                Список
+                                <HiBars3 className="h-5 w-5" />
                             </button>
                         </div>
 
@@ -375,83 +364,37 @@ const DisciplineDetailPage = () => {
                     </div>
                 ) : (
                     <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3' : 'space-y-4'}>
-                        {taskCards.map(({ task, materialsCount, creatorName, grade, status }) => (
-                            <motion.div
+                        {taskCards.map(({ task, creatorName, materialsCount, grade, status }) => (
+                            <TaskCard
                                 key={task.id}
-                                whileHover={{ y: -3 }}
-                                className="cursor-pointer rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 transition-all hover:border-purple-400/30 hover:bg-[#1D1C24]"
-                                onClick={() => navigate(buildTaskPath(courseRef, discipline, task))}
-                            >
-                                <div className={`flex gap-4 ${viewMode === 'list' ? 'flex-col lg:flex-row lg:items-start lg:justify-between' : 'flex-col'}`}>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Создал: {creatorName}</p>
-                                                <h3 className="mt-2 text-xl font-semibold text-white">{task.name}</h3>
-                                            </div>
-
-                                            {canManage && (
-                                                <ActionMenu
-                                                    buttonClassName="border border-white/10 bg-white/5"
-                                                    items={[
-                                                        {
-                                                            label: 'Редактировать',
-                                                            icon: HiPencil,
-                                                            onClick: () => {
-                                                                setSelectedTask(task);
-                                                                setShowEditTask(true);
-                                                            }
-                                                        },
-                                                        {
-                                                            label: 'Удалить',
-                                                            icon: HiTrash,
-                                                            danger: true,
-                                                            onClick: () => {
-                                                                setSelectedTask(task);
-                                                                setShowDeleteTaskConfirm(true);
-                                                            }
-                                                        }
-                                                    ]}
-                                                />
-                                            )}
-                                        </div>
-
-                                        <p className={`mt-3 text-sm leading-6 text-slate-400 ${viewMode === 'grid' ? 'line-clamp-3' : 'line-clamp-2'}`}>
-                                            {getRichTextExcerpt(task.description, viewMode === 'grid' ? 170 : 260) || 'Описание задания пока не заполнено.'}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="mt-5 flex flex-wrap gap-2 text-xs">
-                                    {!canManage && status && (
-                                        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${status.className}`}>
-                                            {status.label}
-                                        </span>
-                                    )}
-
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                        <HiCalendar className="h-3.5 w-3.5" />
-                                        {formatDate(task.deadline)}
-                                    </span>
-
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                        <HiPaperClip className="h-3.5 w-3.5" />
-                                        Материалов: {materialsCount}
-                                    </span>
-
-                                    {grade ? (
-                                        <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-emerald-200">
-                                            <HiStar className="h-3.5 w-3.5" />
-                                            Оценка: {grade.grade}/{Number(task.scores) || 100}
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-2 rounded-full bg-purple-500/10 px-3 py-1.5 text-purple-200">
-                                            <HiStar className="h-3.5 w-3.5" />
-                                            Баллы: {Number(task.scores) || 100}
-                                        </span>
-                                    )}
-                                </div>
-                            </motion.div>
+                                task={task}
+                                course={courseRef}
+                                discipline={discipline}
+                                layout={viewMode}
+                                creatorName={creatorName}
+                                materialsCount={materialsCount}
+                                grade={grade}
+                                status={status}
+                                actionItems={canManage ? [
+                                    {
+                                        label: 'Редактировать',
+                                        icon: HiPencil,
+                                        onClick: () => {
+                                            setSelectedTask(task);
+                                            setShowEditTask(true);
+                                        }
+                                    },
+                                    {
+                                        label: 'Удалить',
+                                        icon: HiTrash,
+                                        danger: true,
+                                        onClick: () => {
+                                            setSelectedTask(task);
+                                            setShowDeleteTaskConfirm(true);
+                                        }
+                                    }
+                                ] : []}
+                            />
                         ))}
                     </div>
                 )}

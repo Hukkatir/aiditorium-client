@@ -6,7 +6,7 @@ export const getDisplayFileName = (file) => {
         return parts[parts.length - 1];
     }
 
-    return `Файл #${file?.id ?? ''}`.trim();
+    return 'Файл';
 };
 
 export const getFileExtension = (fileName = '') => {
@@ -98,7 +98,7 @@ export const getTaskMaterials = (task) => {
     if (task?.attachment_id && !seenIds.has(Number(task.attachment_id))) {
         materials.push({
             id: task.attachment_id,
-            name: task.attachment_name || `Материал #${task.attachment_id}`
+            name: task.attachment_name || task.attachment?.name || 'Файл'
         });
     }
 

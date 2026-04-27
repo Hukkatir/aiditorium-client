@@ -1,12 +1,13 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
+    HiBars3,
     HiCalendar,
     HiMagnifyingGlass,
     HiPaperClip,
-    HiStar
+    HiSquares2X2
 } from 'react-icons/hi2';
 import MainLayout from '../components/layout/MainLayout';
+import TaskCard from '../components/tasks/TaskCard';
 import { useToast } from '../context/ToastContext';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
@@ -14,7 +15,8 @@ import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
 import { extractCollection } from '../utils/apiUtils';
-import { buildTaskPath } from '../utils/routeUtils';
+import { getTaskMaterials } from '../utils/fileUtils';
+import { getTaskCreatorName } from '../utils/taskPresentation';
 
 const emptyPaginatedResponse = { data: [] };
 
@@ -32,13 +34,37 @@ const formatDateTime = (dateString) => {
     });
 };
 
+const getOwnTaskStatus = (task, latestSubmission) => {
+    if (!latestSubmission) {
+        return null;
+    }
+
+    const deadlineTimestamp = task?.deadline ? new Date(task.deadline).getTime() : null;
+    const submittedAt = new Date(latestSubmission.created_at).getTime();
+    const isLate = deadlineTimestamp && submittedAt > deadlineTimestamp;
+
+    if (isLate) {
+        return {
+            key: 'late',
+            label: 'Сдано с опозданием',
+            className: 'bg-amber-500/10 text-amber-200'
+        };
+    }
+
+    return {
+        key: 'submitted',
+        label: 'Сдано',
+        className: 'bg-emerald-500/10 text-emerald-200'
+    };
+};
+
 const MyTasksPage = () => {
-    const navigate = useNavigate();
     const { showToast } = useToast();
 
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [viewMode, setViewMode] = useState('grid');
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
@@ -67,7 +93,7 @@ const MyTasksPage = () => {
 
             const courseBundles = await Promise.all(
                 courseIds.map(async (courseId) => {
-                    const [courseData, disciplinesData, tasksData, gradesData] = await Promise.all([
+                    const [courseData, disciplinesData, tasksData, gradesData, usersData] = await Promise.all([
                         courseService.getCourse(courseId),
                         disciplineService.getDisciplinesByCourse(courseId).catch(() => ({ data: [] })),
                         taskService.getTasks({ course_id: courseId, per_page: 100 }).catch(() => ({ data: [] })),
@@ -77,7 +103,8 @@ const MyTasksPage = () => {
                             }
 
                             throw error;
-                        })
+                        }),
+                        courseService.getCourseUsers(courseId).catch(() => ({ users: [] }))
                     ]);
 
                     return {
@@ -85,7 +112,8 @@ const MyTasksPage = () => {
                         course: courseData.course || courseData,
                         disciplines: disciplinesData.data || [],
                         tasks: tasksData.data || [],
-                        grades: extractCollection(gradesData, 'grades')
+                        grades: extractCollection(gradesData, 'grades'),
+                        users: usersData.users || usersData.data || []
                     };
                 })
             );
@@ -94,15 +122,20 @@ const MyTasksPage = () => {
             const disciplineMap = new Map();
             const taskMap = new Map();
             const gradeMap = new Map();
+            const usersMap = new Map();
 
-            courseBundles.forEach(({ courseId, course, disciplines, tasks, grades }) => {
+            courseBundles.forEach(({ courseId, course, disciplines, tasks, grades, users }) => {
                 courseMap.set(courseId, course);
+                usersMap.set(courseId, users);
+
                 disciplines.forEach((discipline) => {
                     disciplineMap.set(Number(discipline.id), discipline);
                 });
+
                 tasks.forEach((task) => {
                     taskMap.set(Number(task.id), task);
                 });
+
                 grades.forEach((grade) => {
                     gradeMap.set(`${courseId}:${Number(grade.task_id)}`, grade);
                 });
@@ -133,6 +166,7 @@ const MyTasksPage = () => {
                     const task = taskMap.get(group.taskId);
                     const discipline = disciplineMap.get(Number(task?.discipline_id));
                     const grade = gradeMap.get(`${group.courseId}:${group.taskId}`) || null;
+                    const courseUsers = usersMap.get(group.courseId) || [];
 
                     if (!course || !task || !discipline) {
                         return null;
@@ -143,7 +177,8 @@ const MyTasksPage = () => {
                         course,
                         task,
                         discipline,
-                        grade
+                        grade,
+                        creatorName: getTaskCreatorName(task, courseUsers)
                     };
                 })
                 .filter(Boolean)
@@ -171,7 +206,8 @@ const MyTasksPage = () => {
             const haystack = [
                 entry.task?.name,
                 entry.course?.name,
-                entry.discipline?.name
+                entry.discipline?.name,
+                entry.creatorName
             ]
                 .filter(Boolean)
                 .join(' ')
@@ -194,25 +230,27 @@ const MyTasksPage = () => {
     return (
         <MainLayout>
             <div className="mx-auto max-w-6xl space-y-6">
-                <section className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.16),_transparent_36%),rgba(255,255,255,0.03)] p-6 md:p-8">
+                <section className="rounded-2xl border border-white/10 bg-[#1A1A1C] p-6 md:p-8">
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                         <div className="max-w-3xl">
-                            <p className="text-xs uppercase tracking-[0.32em] text-sky-200/70">Мои задания</p>
-                            <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">Все задания, которые вы отправляли</h1>
+                            <p className="text-sm text-purple-200/80">Мои задания</p>
+                            <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
+                                Все задания, которые вы отправляли
+                            </h1>
                             <p className="mt-4 text-sm leading-7 text-slate-300 md:text-base">
                                 Здесь собраны ваши отправленные задания. Нажмите на карточку, чтобы сразу перейти в нужное задание.
                             </p>
                         </div>
 
-                        <div className="rounded-3xl border border-white/10 bg-black/20 px-5 py-4">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
                             <div className="text-3xl font-semibold text-white">{entries.length}</div>
-                            <div className="mt-1 text-xs uppercase tracking-[0.24em] text-slate-500">отправленных заданий</div>
+                            <div className="mt-1 text-sm text-slate-500">отправленных заданий</div>
                         </div>
                     </div>
                 </section>
 
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                    <label className="flex items-center gap-3 text-sm text-slate-300" htmlFor="my-tasks-search">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                    <label className="flex min-w-[240px] flex-1 items-center gap-3 text-sm text-slate-300" htmlFor="my-tasks-search">
                         <HiMagnifyingGlass className="h-4 w-4 text-slate-500" />
                         <input
                             id="my-tasks-search"
@@ -223,55 +261,71 @@ const MyTasksPage = () => {
                             className="w-full bg-transparent text-white outline-none placeholder:text-slate-500"
                         />
                     </label>
+
+                    <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('grid')}
+                            className={`rounded-xl p-2.5 transition ${
+                                viewMode === 'grid'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                            }`}
+                            aria-label="Плитка"
+                            title="Плитка"
+                        >
+                            <HiSquares2X2 className="h-5 w-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('list')}
+                            className={`rounded-xl p-2.5 transition ${
+                                viewMode === 'list'
+                                    ? 'bg-purple-600 text-white'
+                                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                            }`}
+                            aria-label="Список"
+                            title="Список"
+                        >
+                            <HiBars3 className="h-5 w-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {filteredEntries.length === 0 ? (
-                    <div className="rounded-[32px] border border-dashed border-white/10 px-6 py-16 text-center text-gray-500">
+                    <div className="rounded-2xl border border-dashed border-white/10 px-6 py-16 text-center text-gray-500">
                         {entries.length === 0
                             ? 'Вы пока не отправляли задания.'
                             : 'По этому запросу ничего не найдено.'}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3' : 'space-y-4'}>
                         {filteredEntries.map((entry) => (
-                            <button
+                            <TaskCard
                                 key={`${entry.courseId}:${entry.taskId}`}
-                                type="button"
-                                onClick={() => navigate(buildTaskPath(entry.course, entry.discipline, entry.task))}
-                                className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5 text-left transition hover:border-sky-400/30 hover:bg-sky-400/[0.06]"
-                            >
-                                <div className="flex flex-wrap items-start justify-between gap-4">
-                                    <div className="min-w-0">
-                                        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{entry.course.name}</p>
-                                        <h2 className="mt-2 text-2xl font-semibold text-white">{entry.task.name}</h2>
-                                        <p className="mt-2 text-sm text-slate-400">{entry.discipline.name}</p>
-                                    </div>
-
-                                    {entry.grade && (
-                                        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-right">
-                                            <div className="text-lg font-semibold text-emerald-200">
-                                                {entry.grade.grade}/{Number(entry.task.scores) || 100}
-                                            </div>
-                                            <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-300/70">оценка</div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="mt-5 flex flex-wrap gap-2 text-xs">
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                        <HiPaperClip className="h-3.5 w-3.5" />
-                                        Версий: {entry.submissionsCount}
-                                    </span>
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                        <HiCalendar className="h-3.5 w-3.5" />
-                                        Последняя отправка: {formatDateTime(entry.latestSubmission.created_at)}
-                                    </span>
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                        <HiStar className="h-3.5 w-3.5 text-yellow-400" />
-                                        Максимум: {Number(entry.task.scores) || 100}
-                                    </span>
-                                </div>
-                            </button>
+                                task={entry.task}
+                                course={entry.course}
+                                discipline={entry.discipline}
+                                layout={viewMode}
+                                creatorName={entry.creatorName}
+                                courseLabel={entry.course.name}
+                                disciplineLabel={entry.discipline.name}
+                                status={getOwnTaskStatus(entry.task, entry.latestSubmission)}
+                                grade={entry.grade}
+                                materialsCount={getTaskMaterials(entry.task).length}
+                                extraChips={[
+                                    {
+                                        key: 'versions',
+                                        icon: HiPaperClip,
+                                        label: `Версий: ${entry.submissionsCount}`
+                                    },
+                                    {
+                                        key: 'submitted-at',
+                                        icon: HiCalendar,
+                                        label: `Последняя отправка: ${formatDateTime(entry.latestSubmission.created_at)}`
+                                    }
+                                ]}
+                            />
                         ))}
                     </div>
                 )}
