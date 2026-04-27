@@ -1,7 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
-import { HiCalendar, HiClock, HiPaperClip, HiPencil, HiStar, HiTrash } from 'react-icons/hi2';
+import {
+    HiCalendar,
+    HiClock,
+    HiPaperClip,
+    HiPencil,
+    HiStar,
+    HiTrash
+} from 'react-icons/hi2';
 import EditDisciplineModal from '../components/disciplines/EditDisciplineModal';
 import CreateTaskModal from '../components/tasks/CreateTaskModal';
 import EditTaskModal from '../components/tasks/EditTaskModal';
@@ -12,10 +19,27 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
+import { fileService } from '../services/fileService';
+import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
+import { extractCollection } from '../utils/apiUtils';
 import { getTaskMaterials } from '../utils/fileUtils';
 import { getRichTextExcerpt } from '../utils/richText';
 import { buildCoursePath, buildDisciplinePath, buildTaskPath } from '../utils/routeUtils';
+
+const emptyPaginatedResponse = { data: [] };
+
+const formatDate = (dateString) => {
+    if (!dateString) {
+        return 'Без срока сдачи';
+    }
+
+    return new Date(dateString).toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+};
 
 const getCurrentCourseRole = (course, users, user) => {
     if (!course || !user) {
@@ -27,6 +51,39 @@ const getCurrentCourseRole = (course, users, user) => {
     }
 
     return users.find((item) => Number(item.id) === Number(user.id))?.pivot?.role || null;
+};
+
+const getTaskStatus = (deadline, latestSubmission) => {
+    if (!latestSubmission) {
+        return {
+            label: 'Не сдано',
+            className: 'bg-white/10 text-slate-300'
+        };
+    }
+
+    const deadlineTimestamp = deadline ? new Date(deadline).getTime() : null;
+    const submittedAt = new Date(latestSubmission.created_at).getTime();
+    const isLate = deadlineTimestamp && submittedAt > deadlineTimestamp;
+
+    if (isLate) {
+        return {
+            label: 'Сдано с опозданием',
+            className: 'bg-amber-500/10 text-amber-200'
+        };
+    }
+
+    return {
+        label: 'Сдано',
+        className: 'bg-emerald-500/10 text-emerald-200'
+    };
+};
+
+const getCreatorName = (task, courseUsers) => {
+    if (task.user?.name) {
+        return task.user.name;
+    }
+
+    return courseUsers.find((item) => Number(item.id) === Number(task.user_id))?.name || 'Неизвестно';
 };
 
 const DisciplineDetailPage = () => {
@@ -46,6 +103,9 @@ const DisciplineDetailPage = () => {
     const [showDeleteDisciplineConfirm, setShowDeleteDisciplineConfirm] = useState(false);
     const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
+    const [viewMode, setViewMode] = useState('grid');
+    const [latestSubmissionsByTask, setLatestSubmissionsByTask] = useState(new Map());
+    const [gradesByTask, setGradesByTask] = useState(new Map());
 
     const currentRole = useMemo(() => getCurrentCourseRole(course, courseUsers, user), [course, courseUsers, user]);
     const canManage = currentRole === 'teacher';
@@ -66,10 +126,56 @@ const DisciplineDetailPage = () => {
                 courseService.getCourseUsers(courseObject.id).catch(() => ({ users: [] }))
             ]);
 
+            const nextTasks = tasksData.data || [];
+            const nextUsers = usersData.users || usersData.data || [];
+            const nextRole = getCurrentCourseRole(courseObject, nextUsers, user);
+
             setDiscipline(disciplineObject);
             setCourse(courseObject);
-            setTasks(tasksData.data || []);
-            setCourseUsers(usersData.users || usersData.data || []);
+            setTasks(nextTasks);
+            setCourseUsers(nextUsers);
+
+            if (nextRole !== 'teacher') {
+                const [filesData, gradesData] = await Promise.all([
+                    fileService.getMyFiles({ per_page: 200 }).catch((error) => {
+                        if (error.response?.status === 404) {
+                            return { files: emptyPaginatedResponse };
+                        }
+
+                        throw error;
+                    }),
+                    gradeService.getMyGrades(courseObject.id, 100).catch((error) => {
+                        if (error.response?.status === 404) {
+                            return emptyPaginatedResponse;
+                        }
+
+                        throw error;
+                    })
+                ]);
+
+                const submissionsMap = new Map();
+                extractCollection(filesData, 'files')
+                    .filter((file) => file.type === 'submission' && Number(file.course_id) === Number(courseObject.id))
+                    .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))
+                    .forEach((file) => {
+                        const taskId = Number(file.task_id);
+
+                        if (taskId && !submissionsMap.has(taskId)) {
+                            submissionsMap.set(taskId, file);
+                        }
+                    });
+
+                const gradesMap = new Map();
+                extractCollection(gradesData, 'grades').forEach((grade) => {
+                    gradesMap.set(Number(grade.task_id), grade);
+                });
+
+                setLatestSubmissionsByTask(submissionsMap);
+                setGradesByTask(gradesMap);
+            } else {
+                setLatestSubmissionsByTask(new Map());
+                setGradesByTask(new Map());
+            }
 
             const canonicalPath = buildDisciplinePath(courseObject, disciplineObject);
             if (window.location.pathname !== canonicalPath) {
@@ -83,11 +189,30 @@ const DisciplineDetailPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [courseIdOrSlug, disciplineIdOrSlug, navigate, showToast]);
+    }, [courseIdOrSlug, disciplineIdOrSlug, navigate, showToast, user]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const taskCards = useMemo(
+        () => tasks.map((task) => {
+            const materialsCount = getTaskMaterials(task).length;
+            const creatorName = getCreatorName(task, courseUsers);
+            const grade = gradesByTask.get(Number(task.id)) || null;
+            const latestSubmission = latestSubmissionsByTask.get(Number(task.id)) || null;
+            const status = canManage ? null : getTaskStatus(task.deadline, latestSubmission);
+
+            return {
+                task,
+                materialsCount,
+                creatorName,
+                grade,
+                status
+            };
+        }),
+        [canManage, courseUsers, gradesByTask, latestSubmissionsByTask, tasks]
+    );
 
     const handleDeleteDiscipline = async () => {
         if (!discipline) {
@@ -205,53 +330,72 @@ const DisciplineDetailPage = () => {
                         )}
                     </div>
 
-                    {canManage && (
-                        <button
-                            type="button"
-                            onClick={() => setShowCreateTask(true)}
-                            disabled={isArchived}
-                            className="rounded-2xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Создать задание
-                        </button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('grid')}
+                                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                                    viewMode === 'grid'
+                                        ? 'bg-purple-600 text-white'
+                                        : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                }`}
+                            >
+                                Плитка
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('list')}
+                                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                                    viewMode === 'list'
+                                        ? 'bg-purple-600 text-white'
+                                        : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                }`}
+                            >
+                                Список
+                            </button>
+                        </div>
+
+                        {canManage && (
+                            <button
+                                type="button"
+                                onClick={() => setShowCreateTask(true)}
+                                disabled={isArchived}
+                                className="rounded-2xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Создать задание
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {tasks.length === 0 ? (
+                {taskCards.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 px-6 py-14 text-center text-slate-500">
                         В этой дисциплине пока нет заданий.
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        {tasks.map((task) => {
-                            const materialsCount = getTaskMaterials(task).length;
-
-                            return (
-                                <motion.div
-                                    key={task.id}
-                                    whileHover={{ y: -4 }}
-                                    className="cursor-pointer rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 transition-all hover:border-purple-400/30 hover:bg-[#1D1C24]"
-                                    onClick={() => navigate(buildTaskPath(courseRef, discipline, task))}
-                                >
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <h3 className="mt-3 text-xl font-semibold text-white">{task.name}</h3>
-                                            <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-400">
-                                                {getRichTextExcerpt(task.description, 180) || 'Описание пока не заполнено.'}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex items-start gap-2">
-                                            <div className="rounded-2xl border border-purple-400/20 bg-purple-500/10 px-3 py-2 text-right">
-                                                <div className="text-xs uppercase tracking-[0.24em] text-purple-100/70">Баллы</div>
-                                                <div className="mt-1 text-lg font-semibold text-white">{Number(task.scores) || 100}</div>
+                    <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3' : 'space-y-4'}>
+                        {taskCards.map(({ task, materialsCount, creatorName, grade, status }) => (
+                            <motion.div
+                                key={task.id}
+                                whileHover={{ y: -3 }}
+                                className="cursor-pointer rounded-2xl border border-white/10 bg-[#1A1A1C] p-5 transition-all hover:border-purple-400/30 hover:bg-[#1D1C24]"
+                                onClick={() => navigate(buildTaskPath(courseRef, discipline, task))}
+                            >
+                                <div className={`flex gap-4 ${viewMode === 'list' ? 'flex-col lg:flex-row lg:items-start lg:justify-between' : 'flex-col'}`}>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Создал: {creatorName}</p>
+                                                <h3 className="mt-2 text-xl font-semibold text-white">{task.name}</h3>
                                             </div>
+
                                             {canManage && (
                                                 <ActionMenu
                                                     buttonClassName="border border-white/10 bg-white/5"
                                                     items={[
                                                         {
-                                                            label: 'Редактировать задание',
+                                                            label: 'Редактировать',
                                                             icon: HiPencil,
                                                             onClick: () => {
                                                                 setSelectedTask(task);
@@ -259,7 +403,7 @@ const DisciplineDetailPage = () => {
                                                             }
                                                         },
                                                         {
-                                                            label: 'Удалить задание',
+                                                            label: 'Удалить',
                                                             icon: HiTrash,
                                                             danger: true,
                                                             onClick: () => {
@@ -271,27 +415,44 @@ const DisciplineDetailPage = () => {
                                                 />
                                             )}
                                         </div>
-                                    </div>
 
-                                    <div className="mt-5 flex flex-wrap gap-2 text-xs">
-                                        {task.deadline && (
-                                            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                                <HiCalendar className="h-3.5 w-3.5" />
-                                                Срок сдачи: {new Date(task.deadline).toLocaleDateString()}
-                                            </span>
-                                        )}
-                                        <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                            <HiStar className="h-3.5 w-3.5 text-yellow-400" />
-                                            {Number(task.scores) || 100} баллов
-                                        </span>
-                                        <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                            <HiPaperClip className="h-3.5 w-3.5" />
-                                            Материалов: {materialsCount}
-                                        </span>
+                                        <p className={`mt-3 text-sm leading-6 text-slate-400 ${viewMode === 'grid' ? 'line-clamp-3' : 'line-clamp-2'}`}>
+                                            {getRichTextExcerpt(task.description, viewMode === 'grid' ? 170 : 260) || 'Описание задания пока не заполнено.'}
+                                        </p>
                                     </div>
-                                </motion.div>
-                            );
-                        })}
+                                </div>
+
+                                <div className="mt-5 flex flex-wrap gap-2 text-xs">
+                                    {!canManage && status && (
+                                        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${status.className}`}>
+                                            {status.label}
+                                        </span>
+                                    )}
+
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                        <HiCalendar className="h-3.5 w-3.5" />
+                                        {formatDate(task.deadline)}
+                                    </span>
+
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                        <HiPaperClip className="h-3.5 w-3.5" />
+                                        Материалов: {materialsCount}
+                                    </span>
+
+                                    {grade ? (
+                                        <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-emerald-200">
+                                            <HiStar className="h-3.5 w-3.5" />
+                                            Оценка: {grade.grade}/{Number(task.scores) || 100}
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-2 rounded-full bg-purple-500/10 px-3 py-1.5 text-purple-200">
+                                            <HiStar className="h-3.5 w-3.5" />
+                                            Баллы: {Number(task.scores) || 100}
+                                        </span>
+                                    )}
+                                </div>
+                            </motion.div>
+                        ))}
                     </div>
                 )}
             </div>

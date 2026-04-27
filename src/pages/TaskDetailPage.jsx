@@ -74,6 +74,21 @@ const getSubmissionStatus = (deadline, latestSubmission) => {
 
 const emptyPaginatedResponse = { data: [] };
 
+const mergeUniqueFiles = (previousFiles, nextFiles) => {
+    const seen = new Set(previousFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
+    const result = [...previousFiles];
+
+    nextFiles.forEach((file) => {
+        const key = `${file.name}-${file.size}-${file.lastModified}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            result.push(file);
+        }
+    });
+
+    return result;
+};
+
 const TaskDetailPage = () => {
     const { courseIdOrSlug, disciplineIdOrSlug, taskNumber } = useParams();
     const navigate = useNavigate();
@@ -90,7 +105,7 @@ const TaskDetailPage = () => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSubmitModal, setShowSubmitModal] = useState(false);
-    const [submitFile, setSubmitFile] = useState(null);
+    const [submitFiles, setSubmitFiles] = useState([]);
     const [submitting, setSubmitting] = useState(false);
     const [removingSubmissionId, setRemovingSubmissionId] = useState(null);
     const [ownSubmissions, setOwnSubmissions] = useState([]);
@@ -125,6 +140,15 @@ const TaskDetailPage = () => {
         () => (!isTeacher ? getSubmissionStatus(task?.deadline, latestSubmission) : null),
         [isTeacher, latestSubmission, task?.deadline]
     );
+
+    const closeSubmitModal = useCallback(() => {
+        if (submitting) {
+            return;
+        }
+
+        setShowSubmitModal(false);
+        setSubmitFiles([]);
+    }, [submitting]);
 
     const loadStudentData = useCallback(async (taskId, courseId, role) => {
         if (role === 'teacher' || !taskId || !courseId) {
@@ -288,16 +312,16 @@ const TaskDetailPage = () => {
     };
 
     const handleSubmitFile = async () => {
-        if (!submitFile || !task || !course) {
-            showToast('error', 'Выберите файл');
+        if (!submitFiles.length || !task || !course) {
+            showToast('error', 'Выберите хотя бы один файл');
             return;
         }
         setSubmitting(true);
         try {
-            await taskService.submitTask(task.id, submitFile);
-            showToast('success', 'Работа отправлена');
+            await taskService.submitTask(task.id, submitFiles);
+            showToast('success', submitFiles.length > 1 ? 'Файлы отправлены' : 'Работа отправлена');
             setShowSubmitModal(false);
-            setSubmitFile(null);
+            setSubmitFiles([]);
             await refreshStudentAndComments();
         } catch (error) {
             console.error(error);
@@ -609,7 +633,7 @@ const TaskDetailPage = () => {
                                             onClick={() => setShowSubmitModal(true)}
                                             className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-500"
                                         >
-                                            Прикрепить файл
+                                            Прикрепить файлы
                                         </button>
                                     </div>
 
@@ -622,13 +646,12 @@ const TaskDetailPage = () => {
                                         </div>
                                     )}
 
-                                    <div className="mt-5 grid grid-cols-1  gap-3">
+                                    <div className="mt-5 max-h-[360px] overflow-y-auto pr-1">
                                         <FileTileGrid
                                             files={ownSubmissions}
                                             emptyMessage="Вы еще не отправляли файлы."
                                             onDownload={handleSubmissionDownload}
                                             onRemove={handleRemoveSubmission}
-                                            hideCheckmarks   // если компонент поддерживает – убирает галочки
                                         />
                                     </div>
 
@@ -694,61 +717,76 @@ const TaskDetailPage = () => {
 
             {showSubmitModal && (
                 <div
-                    className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
-                    onClick={() => {
-                        if (!submitting) {
-                            setShowSubmitModal(false);
-                            setSubmitFile(null);
-                        }
-                    }}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-4 backdrop-blur-sm"
+                    onClick={closeSubmitModal}
                 >
                     <div
-                        className="mx-auto my-6 w-full max-w-lg rounded-2xl border border-white/10 bg-[#1A1A1C] p-6 shadow-2xl"
+                        className="w-full max-w-xl rounded-2xl border border-white/10 bg-[#1A1A1C] p-6 shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between gap-4">
                             <h2 className="text-2xl font-semibold text-white">Прикрепить работу</h2>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setShowSubmitModal(false);
-                                    setSubmitFile(null);
-                                }}
+                                onClick={closeSubmitModal}
                                 className="rounded-xl p-2 text-gray-400 transition hover:bg-white/5 hover:text-white"
                             >
                                 <HiXMark className="h-6 w-6" />
                             </button>
                         </div>
 
-                        <p className="mt-3 text-sm text-gray-400">Файл будет отправлен как новая версия вашей работы.</p>
+                        <p className="mt-3 text-sm text-gray-400">
+                            Можно выбрать один файл или сразу несколько. Каждый файл будет отправлен как отдельная версия вашей работы.
+                        </p>
 
                         <div className="mt-5 rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-5">
                             <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-200 transition hover:bg-purple-500/20">
                                 <HiPaperClip className="h-4 w-4" />
-                                Выбрать файл
+                                Выбрать файлы
                                 <input
                                     type="file"
-                                    onChange={(event) => setSubmitFile(event.target.files?.[0] || null)}
+                                    multiple
+                                    onChange={(event) => {
+                                        const nextFiles = Array.from(event.target.files || []);
+                                        event.target.value = '';
+
+                                        if (!nextFiles.length) {
+                                            return;
+                                        }
+
+                                        setSubmitFiles((previous) => mergeUniqueFiles(previous, nextFiles));
+                                    }}
                                     className="hidden"
                                 />
                             </label>
 
-                            {submitFile ? (
-                                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
-                                    <span className="font-medium">{submitFile.name}</span>
+                            {submitFiles.length > 0 ? (
+                                <div className="mt-4 max-h-56 space-y-2 overflow-y-auto pr-1">
+                                    {submitFiles.map((file, index) => (
+                                        <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                <HiPaperClip className="h-4 w-4 shrink-0 text-gray-400" />
+                                                <span className="truncate font-medium">{file.name}</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSubmitFiles((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}
+                                                className="rounded-full p-0.5 text-gray-400 transition hover:bg-white/10 hover:text-white"
+                                            >
+                                                <HiXMark className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <p className="mt-4 text-sm text-gray-500">Файл пока не выбран.</p>
+                                <p className="mt-4 text-sm text-gray-500">Файлы пока не выбраны.</p>
                             )}
                         </div>
 
                         <div className="mt-6 flex flex-wrap justify-end gap-3">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setShowSubmitModal(false);
-                                    setSubmitFile(null);
-                                }}
+                                onClick={closeSubmitModal}
                                 className="rounded-xl bg-white/5 px-5 py-3 font-medium text-white transition hover:bg-white/10"
                             >
                                 Отмена
@@ -756,7 +794,7 @@ const TaskDetailPage = () => {
                             <button
                                 type="button"
                                 onClick={handleSubmitFile}
-                                disabled={submitting || !submitFile}
+                                disabled={submitting || !submitFiles.length}
                                 className="rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                             >
                                 {submitting ? 'Отправляем...' : 'Отправить работу'}

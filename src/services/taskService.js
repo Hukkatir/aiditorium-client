@@ -37,18 +37,29 @@ export const taskService = {
         return response.data;
     },
 
-    async submitTask(taskId, file, comment = '') {
-        const formData = new FormData();
-        formData.append('task_id', taskId);
-        formData.append('file', file);
+    async submitTask(taskId, files, comment = '') {
+        const fileList = (Array.isArray(files) ? files : [files]).filter(Boolean);
 
-        if (comment.trim()) {
-            formData.append('comment', comment.trim());
+        if (!fileList.length) {
+            throw new Error('No files to submit');
         }
 
-        const response = await apiClient.post('/task/submit', formData);
+        const results = [];
 
-        return response.data;
+        for (const file of fileList) {
+            const formData = new FormData();
+            formData.append('task_id', taskId);
+            formData.append('file', file);
+
+            if (comment.trim()) {
+                formData.append('comment', comment.trim());
+            }
+
+            const response = await apiClient.post('/task/submit', formData);
+            results.push(response.data);
+        }
+
+        return results.length === 1 ? results[0] : results;
     },
 
     async unsubmitTask(taskId, fileId) {
