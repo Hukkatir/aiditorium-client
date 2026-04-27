@@ -1,3 +1,27 @@
+export const TASK_MATERIALS_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+
+export const getFileSizeBytes = (file = {}) => {
+    const size = Number(file?.size ?? file?.size_bytes ?? file?.sizeBytes ?? 0);
+    return Number.isFinite(size) && size > 0 ? size : 0;
+};
+
+export const getFilesTotalSize = (files = []) => files.reduce((total, file) => total + getFileSizeBytes(file), 0);
+
+export const formatFileSize = (bytes = 0) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+
+    return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+};
+
 export const getDisplayFileName = (file) => {
     if (file?.name) return file.name;
     if (file?.original_name) return file.original_name;

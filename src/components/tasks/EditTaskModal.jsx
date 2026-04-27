@@ -5,7 +5,7 @@ import RichTextEditor from '../editor/RichTextEditor';
 import FileTileGrid from '../files/FileTileGrid';
 import { taskService } from '../../services/taskService';
 import { useToast } from '../../context/ToastContext';
-import { getTaskMaterials } from '../../utils/fileUtils';
+import { TASK_MATERIALS_MAX_TOTAL_BYTES, formatFileSize, getFilesTotalSize, getTaskMaterials } from '../../utils/fileUtils';
 
 const mergeUniqueFiles = (previousFiles, nextFiles) => {
     const seen = new Set(previousFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
@@ -22,16 +22,6 @@ const mergeUniqueFiles = (previousFiles, nextFiles) => {
     return result;
 };
 
-const appendTaskMaterials = (formData, files) => {
-    if (!files.length) {
-        return;
-    }
-
-    files.forEach((file) => {
-        formData.append('attachments[]', file);
-    });
-};
-
 const getDateTimeLocalValue = (date = new Date()) => {
     const prepared = new Date(date);
     prepared.setSeconds(0, 0);
@@ -44,7 +34,8 @@ const mapServerErrors = (serverErrors = {}) => ({
     name: serverErrors.name?.[0] || '',
     scores: serverErrors.scores?.[0] || '',
     deadline: serverErrors.deadline?.[0] || '',
-    description: serverErrors.description?.[0] || ''
+    description: serverErrors.description?.[0] || '',
+    attachments: serverErrors.attachments?.[0] || ''
 });
 
 const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
@@ -137,6 +128,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
         const trimmedName = formData.name.trim();
         const trimmedScores = String(formData.scores || '').trim();
         const trimmedDeadline = String(formData.deadline || '').trim();
+        const materialsTotalSize = getFilesTotalSize(existingMaterials) + getFilesTotalSize(newMaterials);
 
         if (!trimmedName) {
             nextErrors.name = 'Введите название задания.';
@@ -157,6 +149,10 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
             } else if (trimmedDeadline !== initialDeadlineValue && deadlineTime < Date.now() - 60_000) {
                 nextErrors.deadline = 'Срок сдачи не может быть в прошлом.';
             }
+        }
+
+        if (materialsTotalSize > TASK_MATERIALS_MAX_TOTAL_BYTES) {
+            nextErrors.attachments = `Общий размер материалов не должен превышать ${formatFileSize(TASK_MATERIALS_MAX_TOTAL_BYTES)}. После сохранения будет ${formatFileSize(materialsTotalSize)}.`;
         }
 
         return nextErrors;
@@ -187,13 +183,16 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                 payload.append('deadline', formData.deadline);
             }
 
-            appendTaskMaterials(payload, newMaterials);
-
             removedAttachmentIds.forEach((fileId) => {
                 payload.append('removed_attachment_ids[]', String(fileId));
             });
 
             await taskService.updateTask(task.id, payload);
+
+            if (newMaterials.length > 0) {
+                await taskService.uploadTaskMaterials(task.id, newMaterials);
+            }
+
             showToast('success', 'Задание обновлено');
             onSuccess();
             onClose();
@@ -364,6 +363,7 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
                                                 Новые материалы пока не выбраны.
                                             </div>
                                         )}
+                                        {errors.attachments && <p className="mt-2 text-sm text-red-400">{errors.attachments}</p>}
                                     </section>
                                 </aside>
                             </div>
