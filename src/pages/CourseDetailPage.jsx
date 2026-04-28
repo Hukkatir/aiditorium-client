@@ -278,6 +278,47 @@ const CourseDetailPage = () => {
         }
     };
 
+    const applyCoursePatch = (coursePatch) => {
+        const nextCourse = coursePatch?.course || coursePatch;
+
+        if (!nextCourse || typeof nextCourse !== 'object') {
+            return;
+        }
+
+        setCourse((previous) => ({
+            ...(previous || {}),
+            ...nextCourse
+        }));
+    };
+
+    const handleRegenerateInviteCode = async () => {
+        if (!course) {
+            return;
+        }
+
+        try {
+            const response = await courseService.regenerateInviteCode(course.id);
+            applyCoursePatch(response);
+            showToast('success', 'Код приглашения обновлён');
+        } catch (error) {
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка');
+        }
+    };
+
+    const handleGenerateTeacherCode = async () => {
+        if (!course) {
+            return;
+        }
+
+        try {
+            const response = await courseService.generateTeacherCode(course.id);
+            applyCoursePatch(response);
+            showToast('success', course.invite_code_teacher ? 'Код для учителя обновлён' : 'Код для учителя создан');
+        } catch (error) {
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка');
+        }
+    };
+
     const handleDeleteCourse = async () => {
         if (!course || !isAdmin) {
             return;
@@ -419,7 +460,7 @@ const CourseDetailPage = () => {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => runCourseAction(courseService.regenerateInviteCode, 'Код приглашения обновлён', () => {})}
+                                        onClick={handleRegenerateInviteCode}
                                         className="rounded p-1 transition hover:bg-white/10"
                                     >
                                         <HiArrowPath className="h-4 w-4" />
@@ -440,7 +481,7 @@ const CourseDetailPage = () => {
                                     )}
                                     <button
                                         type="button"
-                                        onClick={() => runCourseAction(courseService.generateTeacherCode, course.invite_code_teacher ? 'Код для учителя обновлён' : 'Код для учителя создан', () => {})}
+                                        onClick={handleGenerateTeacherCode}
                                         className="rounded p-1 transition hover:bg-white/10"
                                     >
                                         <HiArrowPath className="h-4 w-4" />

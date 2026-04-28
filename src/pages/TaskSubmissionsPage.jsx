@@ -75,6 +75,7 @@ const TaskSubmissionsPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
     const [savingReviewers, setSavingReviewers] = useState(false);
+    const [canManageReviewers, setCanManageReviewers] = useState(false);
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
@@ -88,7 +89,6 @@ const TaskSubmissionsPage = () => {
         : '/courses';
 
     const isTeacher = currentRole === 'teacher';
-    const canManageReviewers = Number(task?.user_id) === Number(user?.id);
     const gradeLimit = useMemo(() => {
         const parsedScores = Number(task?.scores);
         return Number.isFinite(parsedScores) && parsedScores > 0 ? parsedScores : 100;
@@ -280,6 +280,10 @@ const TaskSubmissionsPage = () => {
             setCourseUsers(users);
             setReviewers(reviewersData.reviewers || taskObject.reviewers || []);
             setReviewerDraftIds((reviewersData.reviewers || taskObject.reviewers || []).map((reviewer) => Number(reviewer.id)));
+            setCanManageReviewers(Boolean(
+                reviewersData.can_manage_reviewers
+                ?? Number(taskObject.user_id) === Number(user?.id)
+            ));
             setSubmissions(extractCollection(submissionsData, 'submissions'));
             setGrades(extractCollection(gradesData, 'grades'));
             setTaskComments(extractCollection(commentsData));
