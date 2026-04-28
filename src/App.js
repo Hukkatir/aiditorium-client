@@ -9,6 +9,7 @@ import DisciplineDetailPage from './pages/DisciplineDetailPage';
 import FilePreviewPage from './pages/FilePreviewPage';
 import MyTasksPage from './pages/MyTasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
+import TaskReviewSettingsPage from './pages/TaskReviewSettingsPage';
 import TaskSubmissionsPage from './pages/TaskSubmissionsPage';
 // Защищённый маршрут (без Layout – Layout уже внутри страниц)
 const ProtectedRoute = ({ children }) => {
@@ -84,6 +85,11 @@ function App() {
                 <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber/submissions" element={
                     <ProtectedRoute>
                         <TaskSubmissionsPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber/review-settings" element={
+                    <ProtectedRoute>
+                        <TaskReviewSettingsPage />
                     </ProtectedRoute>
                 } />
                 <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber" element={

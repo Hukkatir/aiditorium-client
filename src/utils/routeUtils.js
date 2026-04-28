@@ -17,4 +17,7 @@ export const buildTaskPath = (course, discipline, task) =>
 export const buildTaskSubmissionsPath = (course, discipline, task) =>
     `${buildTaskPath(course, discipline, task)}/submissions`;
 
+export const buildTaskReviewSettingsPath = (course, discipline, task) =>
+    `${buildTaskPath(course, discipline, task)}/review-settings`;
+
 export const buildFilePreviewPath = (fileId) => `/file/${fileId}/preview`;

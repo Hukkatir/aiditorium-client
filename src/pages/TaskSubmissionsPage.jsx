@@ -2,11 +2,18 @@ import React, { startTransition, useCallback, useDeferredValue, useEffect, useMe
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     HiArrowLeft,
+    HiArrowDownTray,
+    HiArrowPath,
     HiCalendar,
     HiCheck,
+    HiCog6Tooth,
+    HiCpuChip,
+    HiDocumentArrowDown,
+    HiExclamationTriangle,
     HiMagnifyingGlass,
     HiShieldCheck,
     HiStar,
+    HiTableCells,
     HiUserCircle
 } from 'react-icons/hi2';
 import CommentThreadList from '../components/comments/CommentThreadList';
@@ -20,11 +27,25 @@ import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
 import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
+import { aiReviewService } from '../services/aiReviewService';
 import { taskService } from '../services/taskService';
 import { extractCollection } from '../utils/apiUtils';
 import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
-import { buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
+import {
+    buildTaskPath,
+    buildTaskReviewSettingsPath,
+    buildTaskSubmissionsPath
+} from '../utils/routeUtils';
+import {
+    buildGradeSourcesByStudent,
+    calculateAverageGrade,
+    formatGradeValue,
+    getAiReviewScore,
+    getLatestAiReviewByStudent,
+    getSourceValues
+} from '../utils/gradeReviewUtils';
+import { DEFAULT_PEER_REVIEW_SETTINGS, loadPeerReviewSettings } from '../utils/reviewSettingsUtils';
 
 const formatDateTime = (dateString) => {
     if (!dateString) {
@@ -54,6 +75,52 @@ const getCurrentCourseRole = (course, users, user) => {
 
 const emptyPaginatedResponse = { data: [] };
 
+const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
+
+const isReviewPermissionError = (error) => {
+    const message = getApiMessage(error);
+    return error.response?.status === 403 && (
+        !message
+        ||
+        /permission/i.test(message)
+        || /review submissions/i.test(message)
+        || /доступ/i.test(message)
+        || /unauthorized/i.test(message)
+    );
+};
+
+const AI_REVIEW_STATUS_META = {
+    queued: { label: 'В очереди', className: 'bg-white/10 text-slate-300' },
+    extracting: { label: 'Читает файл', className: 'bg-purple-500/10 text-purple-200' },
+    analyzing: { label: 'Проверяет', className: 'bg-purple-500/10 text-purple-200' },
+    completed: { label: 'Готово', className: 'bg-emerald-500/10 text-emerald-200' },
+    failed: { label: 'Ошибка', className: 'bg-red-500/10 text-red-200' }
+};
+
+const getAiReviewStatus = (review) => {
+    const status = String(review?.status?.value || review?.status || '').toLowerCase();
+    return AI_REVIEW_STATUS_META[status] || { label: review ? status || 'Неизвестно' : 'Не запускалась', className: 'bg-white/10 text-slate-300' };
+};
+
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const downloadTextFile = (content, fileName, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
 const TaskSubmissionsPage = () => {
     const { courseIdOrSlug, disciplineIdOrSlug, taskNumber } = useParams();
     const navigate = useNavigate();
@@ -69,13 +136,17 @@ const TaskSubmissionsPage = () => {
     const [reviewers, setReviewers] = useState([]);
     const [reviewerDraftIds, setReviewerDraftIds] = useState([]);
     const [grades, setGrades] = useState([]);
+    const [aiReviews, setAiReviews] = useState([]);
+    const [peerSettings, setPeerSettings] = useState(DEFAULT_PEER_REVIEW_SETTINGS);
     const [gradeInputs, setGradeInputs] = useState({});
     const [savingGradeFor, setSavingGradeFor] = useState(null);
+    const [queueingAiReviewFor, setQueueingAiReviewFor] = useState(null);
     const [selectedStudentId, setSelectedStudentId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
     const [savingReviewers, setSavingReviewers] = useState(false);
     const [canManageReviewers, setCanManageReviewers] = useState(false);
+    const [reviewAccessDenied, setReviewAccessDenied] = useState(false);
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
@@ -86,6 +157,9 @@ const TaskSubmissionsPage = () => {
 
     const taskPath = task && course && discipline
         ? buildTaskPath(course, discipline, task)
+        : '/courses';
+    const reviewSettingsPath = task && course && discipline
+        ? buildTaskReviewSettingsPath(course, discipline, task)
         : '/courses';
 
     const isTeacher = currentRole === 'teacher';
@@ -133,13 +207,23 @@ const TaskSubmissionsPage = () => {
         return new Map(entries);
     }, [submissions]);
 
+    const gradeSourcesByStudent = useMemo(
+        () => buildGradeSourcesByStudent(grades, task?.id),
+        [grades, task?.id]
+    );
+
     const gradesByStudent = useMemo(() => {
-        const gradeEntries = grades
-            .filter((grade) => Number(grade.task_id) === Number(task?.id))
-            .map((grade) => [Number(grade.user_id), grade]);
+        const gradeEntries = Array.from(gradeSourcesByStudent.entries())
+            .filter(([, sources]) => sources.teacher)
+            .map(([userId, sources]) => [userId, sources.teacher]);
 
         return new Map(gradeEntries);
-    }, [grades, task]);
+    }, [gradeSourcesByStudent]);
+
+    const latestAiReviewByStudent = useMemo(
+        () => getLatestAiReviewByStudent(aiReviews, groupedSubmissions),
+        [aiReviews, groupedSubmissions]
+    );
 
     const privateCommentCounts = useMemo(() => {
         const counts = new Map();
@@ -192,6 +276,19 @@ const TaskSubmissionsPage = () => {
     }, [selectedGroup, taskComments]);
 
     const selectedStudentGrade = selectedGroup ? gradesByStudent.get(selectedGroup.userId) : null;
+    const selectedGradeSources = useMemo(
+        () => (selectedGroup ? gradeSourcesByStudent.get(selectedGroup.userId) || {} : {}),
+        [gradeSourcesByStudent, selectedGroup]
+    );
+    const selectedAiReview = selectedGroup ? latestAiReviewByStudent.get(selectedGroup.userId) : null;
+    const selectedSourceValues = useMemo(
+        () => getSourceValues(selectedGradeSources, selectedAiReview),
+        [selectedAiReview, selectedGradeSources]
+    );
+    const selectedAverageGrade = useMemo(
+        () => calculateAverageGrade(selectedSourceValues),
+        [selectedSourceValues]
+    );
 
     const gradedCount = useMemo(
         () => groupedSubmissions.filter((group) => gradesByStudent.has(group.userId)).length,
@@ -199,6 +296,27 @@ const TaskSubmissionsPage = () => {
     );
 
     const latestSubmittedAt = groupedSubmissions[0]?.latestSubmission?.created_at || null;
+
+    const journalRows = useMemo(() => groupedSubmissions.map((group) => {
+        const sources = gradeSourcesByStudent.get(group.userId) || {};
+        const aiReview = latestAiReviewByStudent.get(group.userId);
+        const values = getSourceValues(sources, aiReview);
+        const averageGrade = calculateAverageGrade(values);
+
+        return {
+            studentId: group.userId,
+            studentName: group.user?.name || 'Студент',
+            studentEmail: group.user?.email || '',
+            latestSubmissionAt: group.latestSubmission?.created_at || null,
+            submissionsCount: group.submissions.length,
+            teacherGrade: values.teacher,
+            aiGrade: values.ai,
+            peerGrade: values.peer,
+            averageGrade,
+            finalGrade: values.teacher ?? averageGrade,
+            aiReviewStatus: getAiReviewStatus(aiReview).label
+        };
+    }), [gradeSourcesByStudent, groupedSubmissions, latestAiReviewByStudent]);
 
     useEffect(() => {
         setGradeInputs((previous) => {
@@ -226,6 +344,7 @@ const TaskSubmissionsPage = () => {
 
     const fetchPageData = useCallback(async () => {
         setLoading(true);
+        setReviewAccessDenied(false);
 
         try {
             const taskData = await taskService.getTask(courseIdOrSlug, disciplineIdOrSlug, taskNumber);
@@ -238,31 +357,32 @@ const TaskSubmissionsPage = () => {
 
             const courseObject = courseData.course || courseData;
             const disciplineObject = disciplineData.discipline || disciplineData;
+            let hasReviewAccessError = false;
 
-            const [usersData, reviewersData, submissionsData, gradesData, commentsData] = await Promise.all([
+            const handleReviewScopedError = (error, fallback) => {
+                if (error.response?.status === 404) {
+                    return fallback;
+                }
+
+                if (isReviewPermissionError(error)) {
+                    hasReviewAccessError = true;
+                    return fallback;
+                }
+
+                throw error;
+            };
+
+            const [usersData, reviewersData, submissionsData, gradesData, commentsData, aiReviewsData] = await Promise.all([
                 courseService.getCourseUsers(courseObject.id).catch(() => ({ users: [] })),
                 taskService.getTaskReviewers(taskObject.id).catch(() => ({ reviewers: taskObject.reviewers || [] })),
-                taskService.getTaskSubmissions(taskObject.id, 100).catch((error) => {
-                    if (error.response?.status === 404) {
-                        return { submissions: emptyPaginatedResponse };
-                    }
-
-                    throw error;
-                }),
-                gradeService.getCourseGrades(courseObject.id, 100, taskObject.id).catch((error) => {
-                    if (error.response?.status === 404) {
-                        return emptyPaginatedResponse;
-                    }
-
-                    throw error;
-                }),
-                commentService.getTaskComments(taskObject.id, 100).catch((error) => {
-                    if (error.response?.status === 404) {
-                        return emptyPaginatedResponse;
-                    }
-
-                    throw error;
-                })
+                taskService.getTaskSubmissions(taskObject.id, 100)
+                    .catch((error) => handleReviewScopedError(error, { submissions: emptyPaginatedResponse })),
+                gradeService.getCourseGrades(courseObject.id, 100, taskObject.id)
+                    .catch((error) => handleReviewScopedError(error, emptyPaginatedResponse)),
+                commentService.getTaskComments(taskObject.id, 100)
+                    .catch((error) => handleReviewScopedError(error, emptyPaginatedResponse)),
+                aiReviewService.getTaskAiReviews(taskObject.id, 100)
+                    .catch((error) => handleReviewScopedError(error, { reviews: emptyPaginatedResponse }))
             ]);
 
             const users = usersData.users || usersData.data || [];
@@ -284,9 +404,12 @@ const TaskSubmissionsPage = () => {
                 reviewersData.can_manage_reviewers
                 ?? Number(taskObject.user_id) === Number(user?.id)
             ));
+            setReviewAccessDenied(hasReviewAccessError);
             setSubmissions(extractCollection(submissionsData, 'submissions'));
             setGrades(extractCollection(gradesData, 'grades'));
             setTaskComments(extractCollection(commentsData));
+            setAiReviews(extractCollection(aiReviewsData, 'reviews'));
+            setPeerSettings(loadPeerReviewSettings(taskObject.id));
 
             const canonicalPath = buildTaskSubmissionsPath(courseObject, disciplineObject, taskObject);
             if (window.location.pathname !== canonicalPath) {
@@ -322,6 +445,22 @@ const TaskSubmissionsPage = () => {
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось обновить комментарии');
+        }
+    }, [showToast, task?.id]);
+
+    const reloadAiReviews = useCallback(async () => {
+        if (!task?.id) {
+            return;
+        }
+
+        try {
+            const reviewsData = await aiReviewService.getTaskAiReviews(task.id, 100);
+            setAiReviews(extractCollection(reviewsData, 'reviews'));
+        } catch (error) {
+            if (!isReviewPermissionError(error)) {
+                console.error(error);
+                showToast('error', getApiMessage(error) || 'Не удалось обновить AI-проверки');
+            }
         }
     }, [showToast, task?.id]);
 
@@ -366,6 +505,138 @@ const TaskSubmissionsPage = () => {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось скачать файл');
         }
+    };
+
+    const setGradeInput = (studentId, value) => {
+        setGradeInputs((previous) => ({
+            ...previous,
+            [studentId]: value === null || value === undefined ? '' : String(value)
+        }));
+    };
+
+    const handleUseAverageGrade = (group) => {
+        const sources = gradeSourcesByStudent.get(group.userId) || {};
+        const aiReview = latestAiReviewByStudent.get(group.userId);
+        const averageGrade = calculateAverageGrade(getSourceValues(sources, aiReview));
+
+        if (averageGrade === null) {
+            showToast('error', 'Пока нет оценок, из которых можно посчитать среднее');
+            return;
+        }
+
+        setGradeInput(group.userId, averageGrade);
+        showToast('success', 'Средняя оценка подставлена в итоговый балл');
+    };
+
+    const handleUseAiGrade = (group) => {
+        const aiReview = latestAiReviewByStudent.get(group.userId);
+        const aiGrade = getAiReviewScore(aiReview);
+
+        if (aiGrade === null) {
+            showToast('error', 'AI еще не вернул оценку для этой работы');
+            return;
+        }
+
+        setGradeInput(group.userId, aiGrade);
+        showToast('success', 'Оценка AI подставлена в итоговый балл');
+    };
+
+    const handleQueueAiReview = async (group, forceRecheck = false) => {
+        if (!task?.id || !group?.latestSubmission?.id) {
+            return;
+        }
+
+        setQueueingAiReviewFor(group.userId);
+
+        try {
+            await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
+            showToast('success', forceRecheck ? 'AI-перепроверка запущена' : 'AI-проверка запущена');
+            await reloadAiReviews();
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiMessage(error) || 'Не удалось запустить AI-проверку. Проверьте настройки критериев.');
+        } finally {
+            setQueueingAiReviewFor(null);
+        }
+    };
+
+    const handleExportJson = () => {
+        if (!journalRows.length) {
+            showToast('error', 'В журнале пока нет строк для экспорта');
+            return;
+        }
+
+        const payload = {
+            exported_at: new Date().toISOString(),
+            course: { id: course.id, name: course.name },
+            discipline: { id: discipline?.id, name: discipline?.name },
+            task: { id: task.id, name: task.name, max_score: gradeLimit },
+            peer_review: peerSettings,
+            rows: journalRows
+        };
+
+        downloadTextFile(
+            `\uFEFF${JSON.stringify(payload, null, 2)}`,
+            `journal-task-${task.id}.json`,
+            'application/json;charset=utf-8'
+        );
+    };
+
+    const handleExportExcel = () => {
+        if (!journalRows.length) {
+            showToast('error', 'В журнале пока нет строк для экспорта');
+            return;
+        }
+
+        const rowsHtml = journalRows.map((row) => `
+            <tr>
+                <td>${escapeHtml(row.studentName)}</td>
+                <td>${escapeHtml(row.studentEmail)}</td>
+                <td>${escapeHtml(formatGradeValue(row.teacherGrade, gradeLimit))}</td>
+                <td>${escapeHtml(formatGradeValue(row.aiGrade, gradeLimit))}</td>
+                <td>${escapeHtml(formatGradeValue(row.peerGrade, gradeLimit))}</td>
+                <td>${escapeHtml(formatGradeValue(row.averageGrade, gradeLimit))}</td>
+                <td>${escapeHtml(formatGradeValue(row.finalGrade, gradeLimit))}</td>
+                <td>${escapeHtml(row.aiReviewStatus)}</td>
+                <td>${escapeHtml(formatDateTime(row.latestSubmissionAt))}</td>
+                <td>${escapeHtml(row.submissionsCount)}</td>
+            </tr>
+        `).join('');
+
+        const html = `
+            <!doctype html>
+            <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Журнал оценок</title>
+                </head>
+                <body>
+                    <table border="1">
+                        <thead>
+                            <tr>
+                                <th>Студент</th>
+                                <th>Email</th>
+                                <th>Преподаватель</th>
+                                <th>AI</th>
+                                <th>Взаимопроверка</th>
+                                <th>Среднее</th>
+                                <th>Итог</th>
+                                <th>AI-статус</th>
+                                <th>Последняя сдача</th>
+                                <th>Версий</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </body>
+            </html>
+        `;
+
+        downloadTextFile(
+            `\uFEFF${html}`,
+            `journal-task-${task.id}.xls`,
+            'application/vnd.ms-excel;charset=utf-8'
+        );
     };
 
     const handleSaveGrade = async (group) => {
@@ -507,7 +778,8 @@ const TaskSubmissionsPage = () => {
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                        <div className="space-y-3">
+                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
                             <div className="flex items-center gap-2">
                                 <HiCalendar className="h-4 w-4 text-slate-500" />
                                 <span>Срок сдачи: {task.deadline ? formatDateTime(task.deadline) : 'не указан'}</span>
@@ -519,11 +791,38 @@ const TaskSubmissionsPage = () => {
                             <div className="mt-3 text-xs text-slate-500">
                                 Студентов с работами: {groupedSubmissions.length}
                             </div>
+                            </div>
+
+                            {canManageReviewers && (
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(reviewSettingsPath)}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20"
+                                >
+                                    <HiCog6Tooth className="h-4 w-4" />
+                                    Настройки проверки
+                                </button>
+                            )}
                         </div>
                     </div>
                 </section>
 
-                {canManageReviewers && (
+                {reviewAccessDenied && (
+                    <section className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 md:p-6">
+                        <div className="flex items-start gap-3">
+                            <HiExclamationTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-200" />
+                            <div>
+                                <h2 className="text-lg font-semibold text-amber-50">Нет доступа к проверке работ</h2>
+                                <p className="mt-2 text-sm leading-6 text-amber-100/80">
+                                    Вы преподаватель этого курса, но автор задания не выдал вам право проверять сдачи.
+                                    Само задание можно смотреть без ошибки, а доступ к проверке должен добавить автор задания.
+                                </p>
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {!reviewAccessDenied && canManageReviewers && (
                     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
                         <div className="flex flex-wrap items-start justify-between gap-4">
                             <div>
@@ -586,7 +885,92 @@ const TaskSubmissionsPage = () => {
                     </section>
                 )}
 
-                {groupedSubmissions.length === 0 ? (
+                {!reviewAccessDenied && groupedSubmissions.length > 0 && (
+                    <section className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <HiTableCells className="h-5 w-5 text-purple-300" />
+                                    <h2 className="text-xl font-semibold text-white">Журнал оценок</h2>
+                                </div>
+                                <p className="mt-2 text-sm text-slate-500">
+                                    Здесь собраны оценки преподавателя, AI и взаимопроверки. Итогом считается оценка преподавателя,
+                                    а если ее нет, показывается среднее по доступным источникам.
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                    <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                        Взаимопроверка: {peerSettings.enabled ? (peerSettings.mode === 'blind' ? 'слепая' : 'открытая') : 'выключена'}
+                                    </span>
+                                    {peerSettings.enabled && (
+                                        <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                            Проверок на студента: {peerSettings.reviewsPerStudent}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleExportExcel}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500"
+                                >
+                                    <HiDocumentArrowDown className="h-4 w-4" />
+                                    Excel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExportJson}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                >
+                                    <HiArrowDownTray className="h-4 w-4" />
+                                    JSON
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
+                            <table className="min-w-full divide-y divide-white/10 text-sm">
+                                <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-[0.14em] text-slate-500">
+                                    <tr>
+                                        <th className="px-4 py-3">Студент</th>
+                                        <th className="px-4 py-3">Преподаватель</th>
+                                        <th className="px-4 py-3">AI</th>
+                                        <th className="px-4 py-3">Взаимопроверка</th>
+                                        <th className="px-4 py-3">Итог</th>
+                                        <th className="px-4 py-3">Сдача</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/10">
+                                    {journalRows.map((row) => (
+                                        <tr key={row.studentId} className="text-slate-300">
+                                            <td className="px-4 py-3">
+                                                <p className="font-medium text-white">{row.studentName}</p>
+                                                <p className="text-xs text-slate-500">{row.studentEmail || 'Почта не указана'}</p>
+                                            </td>
+                                            <td className="px-4 py-3">{formatGradeValue(row.teacherGrade, gradeLimit)}</td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col gap-1">
+                                                    <span>{formatGradeValue(row.aiGrade, gradeLimit)}</span>
+                                                    <span className="text-xs text-slate-500">{row.aiReviewStatus}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">{formatGradeValue(row.peerGrade, gradeLimit)}</td>
+                                            <td className="px-4 py-3">
+                                                <span className="rounded-full bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-100">
+                                                    {formatGradeValue(row.finalGrade, gradeLimit)}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs text-slate-500">{formatDateTime(row.latestSubmissionAt)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                )}
+
+                {reviewAccessDenied ? null : groupedSubmissions.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 px-6 py-16 text-center text-slate-500">
                         Пока никто не сдал работу по этому заданию.
                     </div>
@@ -711,11 +1095,26 @@ const TaskSubmissionsPage = () => {
 
                                         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                                             <label className="block text-sm font-medium text-slate-300" htmlFor={`grade-${selectedGroup.userId}`}>
-                                                Оценка за задание
+                                                Итоговая оценка преподавателя
                                             </label>
                                             <p className="mt-2 text-sm text-slate-500">
-                                                Введите балл от 0 до {gradeLimit}. Если оценка уже была, она обновится.
+                                                Можно поставить вручную или подставить среднее по доступным источникам.
                                             </p>
+
+                                            <div className="mt-4 grid gap-2 text-xs">
+                                                <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-slate-300">
+                                                    <span>Преподаватель</span>
+                                                    <span className="font-medium text-white">{formatGradeValue(selectedSourceValues.teacher, gradeLimit)}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-slate-300">
+                                                    <span>AI</span>
+                                                    <span className="font-medium text-white">{formatGradeValue(selectedSourceValues.ai, gradeLimit)}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-slate-300">
+                                                    <span>Взаимопроверка</span>
+                                                    <span className="font-medium text-white">{formatGradeValue(selectedSourceValues.peer, gradeLimit)}</span>
+                                                </div>
+                                            </div>
 
                                             <div className="mt-4 flex gap-3">
                                                 <input
@@ -740,6 +1139,25 @@ const TaskSubmissionsPage = () => {
                                                     className="rounded-xl bg-purple-600 px-4 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                                                 >
                                                     {savingGradeFor === selectedGroup.userId ? '...' : 'Сохранить'}
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleUseAverageGrade(selectedGroup)}
+                                                    disabled={selectedAverageGrade === null}
+                                                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    Среднее: {formatGradeValue(selectedAverageGrade, gradeLimit)}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleUseAiGrade(selectedGroup)}
+                                                    disabled={selectedSourceValues.ai === null}
+                                                    className="rounded-xl border border-purple-500/20 bg-purple-500/10 px-3 py-2 text-xs font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    Взять AI
                                                 </button>
                                             </div>
 
@@ -787,6 +1205,87 @@ const TaskSubmissionsPage = () => {
                                         emptyMessage="Студент еще не прикреплял файлы."
                                         onDownload={handleDownload}
                                     />
+                                </section>
+
+                                <section className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
+                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <HiCpuChip className="h-5 w-5 text-purple-300" />
+                                                <h2 className="text-xl font-semibold text-white">AI-проверка</h2>
+                                            </div>
+                                            <p className="mt-2 text-sm text-slate-500">
+                                                Проверяется последняя версия работы. Критерии задаются в настройках проверки.
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            {canManageReviewers && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigate(reviewSettingsPath)}
+                                                    className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                                >
+                                                    Настройки
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleQueueAiReview(selectedGroup, Boolean(selectedAiReview))}
+                                                disabled={queueingAiReviewFor === selectedGroup.userId}
+                                                className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                                            >
+                                                <HiArrowPath className={`h-4 w-4 ${queueingAiReviewFor === selectedGroup.userId ? 'animate-spin' : ''}`} />
+                                                {queueingAiReviewFor === selectedGroup.userId
+                                                    ? 'Запускаем...'
+                                                    : selectedAiReview ? 'Перепроверить' : 'Запустить AI'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr),220px]">
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`rounded-full px-3 py-1 text-xs font-medium ${getAiReviewStatus(selectedAiReview).className}`}>
+                                                    {getAiReviewStatus(selectedAiReview).label}
+                                                </span>
+                                                {selectedAiReview?.model && (
+                                                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                                                        {selectedAiReview.model}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {selectedAiReview?.summary ? (
+                                                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-300">{selectedAiReview.summary}</p>
+                                            ) : (
+                                                <p className="mt-4 text-sm leading-6 text-slate-500">
+                                                    AI еще не запускался для этой сдачи или результат пока не готов.
+                                                </p>
+                                            )}
+
+                                            {selectedAiReview?.error_message && (
+                                                <p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                                                    {selectedAiReview.error_message}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <p className="text-sm text-slate-500">Рекомендация AI</p>
+                                            <p className="mt-2 text-2xl font-semibold text-white">
+                                                {formatGradeValue(getAiReviewScore(selectedAiReview), gradeLimit)}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleUseAiGrade(selectedGroup)}
+                                                disabled={getAiReviewScore(selectedAiReview) === null}
+                                                className="mt-4 w-full rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                Подставить в итог
+                                            </button>
+                                        </div>
+                                    </div>
                                 </section>
 
                                 <CommentThreadList

@@ -19,7 +19,7 @@ export const extractCollection = (payload, key) => {
         return payload;
     }
 
-    const fallbackKeys = ['comments', 'replies', 'files', 'submissions', 'grades', 'tasks', 'courses', 'disciplines', 'users'];
+    const fallbackKeys = ['comments', 'replies', 'files', 'submissions', 'grades', 'reviews', 'tasks', 'courses', 'disciplines', 'users'];
 
     for (const fallbackKey of fallbackKeys) {
         if (Array.isArray(payload?.[fallbackKey]?.data)) {
