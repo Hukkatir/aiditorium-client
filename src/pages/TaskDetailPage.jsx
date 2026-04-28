@@ -26,7 +26,7 @@ import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 import { extractCollection } from '../utils/apiUtils';
-import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
+import { REGULAR_FILE_MAX_BYTES, formatFileSize, getFilesOverSizeLimit, getFirstFileValidationError, getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import { buildDisciplinePath, buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
 
 const formatDateTime = (dateString) => {
@@ -316,6 +316,11 @@ const TaskDetailPage = () => {
             showToast('error', 'Выберите хотя бы один файл');
             return;
         }
+        const oversizedFiles = getFilesOverSizeLimit(submitFiles);
+        if (oversizedFiles.length > 0) {
+            showToast('error', `Файл "${oversizedFiles[0].name}" больше ${formatFileSize(REGULAR_FILE_MAX_BYTES)}`);
+            return;
+        }
         setSubmitting(true);
         try {
             await taskService.submitTask(task.id, submitFiles);
@@ -325,7 +330,8 @@ const TaskDetailPage = () => {
             await refreshStudentAndComments();
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка отправки');
+            const firstValidationError = getFirstFileValidationError(error.response?.data?.errors || {});
+            showToast('error', firstValidationError || error.response?.data?.error || error.response?.data?.message || 'Ошибка отправки');
         } finally { setSubmitting(false); }
     };
 

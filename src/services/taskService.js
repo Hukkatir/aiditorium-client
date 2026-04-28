@@ -32,6 +32,21 @@ export const taskService = {
     },
 
     // Удалить задание
+    async uploadTaskMaterials(taskId, files) {
+        const fileList = (Array.isArray(files) ? files : [files]).filter(Boolean);
+        const results = [];
+
+        for (const file of fileList) {
+            const formData = new FormData();
+            formData.append('files[]', file);
+
+            const response = await apiClient.post(`/task/${taskId}/attachments`, formData);
+            results.push(response.data);
+        }
+
+        return results;
+    },
+
     async deleteTask(taskId) {
         const response = await apiClient.delete(`/task/${taskId}`);
         return response.data;

@@ -4,6 +4,7 @@ import { HiPaperClip, HiPlus, HiXMark } from 'react-icons/hi2';
 import RichTextEditor from '../editor/RichTextEditor';
 import { taskService } from '../../services/taskService';
 import { useToast } from '../../context/ToastContext';
+import { REGULAR_FILE_MAX_BYTES, TASK_MATERIALS_MAX_TOTAL_BYTES, formatFileSize, getFilesOverSizeLimit, getFilesTotalSize, getFirstFileValidationError } from '../../utils/fileUtils';
 
 const mergeUniqueFiles = (previousFiles, nextFiles) => {
     const seen = new Set(previousFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
@@ -20,17 +21,6 @@ const mergeUniqueFiles = (previousFiles, nextFiles) => {
     return result;
 };
 
-const appendTaskMaterials = (formData, files) => {
-    if (!files.length) {
-        return;
-    }
-
-    formData.append('attachment', files[0]);
-    files.forEach((file) => {
-        formData.append('attachments[]', file);
-    });
-};
-
 const getDateTimeLocalValue = (date = new Date()) => {
     const prepared = new Date(date);
     prepared.setSeconds(0, 0);
@@ -39,11 +29,13 @@ const getDateTimeLocalValue = (date = new Date()) => {
     return new Date(prepared.getTime() - timezoneOffset).toISOString().slice(0, 16);
 };
 
-const buildValidationErrors = (formData) => {
+const buildValidationErrors = (formData, materials = []) => {
     const nextErrors = {};
     const trimmedName = formData.name.trim();
     const trimmedScores = String(formData.scores || '').trim();
     const trimmedDeadline = String(formData.deadline || '').trim();
+    const materialsTotalSize = getFilesTotalSize(materials);
+    const oversizedMaterials = getFilesOverSizeLimit(materials);
 
     if (!trimmedName) {
         nextErrors.name = 'Введите название задания.';
@@ -66,6 +58,13 @@ const buildValidationErrors = (formData) => {
         }
     }
 
+    if (materialsTotalSize > TASK_MATERIALS_MAX_TOTAL_BYTES) {
+        nextErrors.attachments = `Общий размер материалов не должен превышать ${formatFileSize(TASK_MATERIALS_MAX_TOTAL_BYTES)}. Сейчас выбрано ${formatFileSize(materialsTotalSize)}.`;
+    }
+    if (oversizedMaterials.length > 0) {
+        nextErrors.attachments = `Файл "${oversizedMaterials[0].name}" больше ${formatFileSize(REGULAR_FILE_MAX_BYTES)}.`;
+    }
+
     return nextErrors;
 };
 
@@ -73,7 +72,8 @@ const mapServerErrors = (serverErrors = {}) => ({
     name: serverErrors.name?.[0] || '',
     scores: serverErrors.scores?.[0] || '',
     deadline: serverErrors.deadline?.[0] || '',
-    description: serverErrors.description?.[0] || ''
+    description: serverErrors.description?.[0] || '',
+    attachments: getFirstFileValidationError(serverErrors)
 });
 
 const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId }) => {
@@ -137,7 +137,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        const nextErrors = buildValidationErrors(formData);
+        const nextErrors = buildValidationErrors(formData, materials);
         if (Object.keys(nextErrors).length > 0) {
             setErrors(nextErrors);
             return;
@@ -161,9 +161,17 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                 payload.append('deadline', formData.deadline);
             }
 
-            appendTaskMaterials(payload, materials);
+            const createdTaskData = await taskService.createTask(payload);
+            const createdTask = createdTaskData.task || createdTaskData;
 
-            await taskService.createTask(payload);
+            if (materials.length > 0) {
+                if (!createdTask?.id) {
+                    throw new Error('Created task id is missing');
+                }
+
+                await taskService.uploadTaskMaterials(createdTask.id, materials);
+            }
+
             showToast('success', 'Задание создано');
             resetState();
             onSuccess();
@@ -175,7 +183,8 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                 setErrors(mapServerErrors(error.response.data.errors));
             }
 
-            const firstValidationError = Object.values(error.response?.data?.errors || {})?.[0]?.[0];
+            const serverErrors = error.response?.data?.errors || {};
+            const firstValidationError = getFirstFileValidationError(serverErrors) || Object.values(serverErrors)?.[0]?.[0];
             showToast('error', firstValidationError || error.response?.data?.message || 'Не удалось создать задание');
         } finally {
             setLoading(false);
@@ -319,6 +328,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                                             Материалы пока не выбраны.
                                         </div>
                                     )}
+                                    {errors.attachments && <p className="mt-2 text-sm text-red-400">{errors.attachments}</p>}
                                 </aside>
                             </div>
 
