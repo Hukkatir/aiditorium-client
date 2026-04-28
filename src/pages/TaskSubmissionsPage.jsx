@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     HiArrowLeft,
     HiCalendar,
+    HiCheck,
     HiMagnifyingGlass,
+    HiShieldCheck,
     HiStar,
     HiUserCircle
 } from 'react-icons/hi2';
@@ -20,6 +22,7 @@ import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
 import { extractCollection } from '../utils/apiUtils';
+import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import { buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
 
@@ -63,12 +66,15 @@ const TaskSubmissionsPage = () => {
     const [courseUsers, setCourseUsers] = useState([]);
     const [submissions, setSubmissions] = useState([]);
     const [taskComments, setTaskComments] = useState([]);
+    const [reviewers, setReviewers] = useState([]);
+    const [reviewerDraftIds, setReviewerDraftIds] = useState([]);
     const [grades, setGrades] = useState([]);
     const [gradeInputs, setGradeInputs] = useState({});
     const [savingGradeFor, setSavingGradeFor] = useState(null);
     const [selectedStudentId, setSelectedStudentId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
+    const [savingReviewers, setSavingReviewers] = useState(false);
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
@@ -82,11 +88,19 @@ const TaskSubmissionsPage = () => {
         : '/courses';
 
     const isTeacher = currentRole === 'teacher';
+    const canManageReviewers = Number(task?.user_id) === Number(user?.id);
     const gradeLimit = useMemo(() => {
         const parsedScores = Number(task?.scores);
         return Number.isFinite(parsedScores) && parsedScores > 0 ? parsedScores : 100;
     }, [task]);
     const taskMaterials = useMemo(() => getTaskMaterials(task), [task]);
+    const teacherOptions = useMemo(
+        () => courseUsers.filter((courseUser) => (
+            courseUser.pivot?.role === 'teacher'
+            && Number(courseUser.id) !== Number(task?.user_id)
+        )),
+        [courseUsers, task]
+    );
 
     const groupedSubmissions = useMemo(() => {
         const groups = new Map();
@@ -225,8 +239,9 @@ const TaskSubmissionsPage = () => {
             const courseObject = courseData.course || courseData;
             const disciplineObject = disciplineData.discipline || disciplineData;
 
-            const [usersData, submissionsData, gradesData, commentsData] = await Promise.all([
+            const [usersData, reviewersData, submissionsData, gradesData, commentsData] = await Promise.all([
                 courseService.getCourseUsers(courseObject.id).catch(() => ({ users: [] })),
+                taskService.getTaskReviewers(taskObject.id).catch(() => ({ reviewers: taskObject.reviewers || [] })),
                 taskService.getTaskSubmissions(taskObject.id, 100).catch((error) => {
                     if (error.response?.status === 404) {
                         return { submissions: emptyPaginatedResponse };
@@ -234,7 +249,7 @@ const TaskSubmissionsPage = () => {
 
                     throw error;
                 }),
-                gradeService.getCourseGrades(courseObject.id, 100).catch((error) => {
+                gradeService.getCourseGrades(courseObject.id, 100, taskObject.id).catch((error) => {
                     if (error.response?.status === 404) {
                         return emptyPaginatedResponse;
                     }
@@ -263,6 +278,8 @@ const TaskSubmissionsPage = () => {
             setCourse(courseObject);
             setDiscipline(disciplineObject);
             setCourseUsers(users);
+            setReviewers(reviewersData.reviewers || taskObject.reviewers || []);
+            setReviewerDraftIds((reviewersData.reviewers || taskObject.reviewers || []).map((reviewer) => Number(reviewer.id)));
             setSubmissions(extractCollection(submissionsData, 'submissions'));
             setGrades(extractCollection(gradesData, 'grades'));
             setTaskComments(extractCollection(commentsData));
@@ -282,6 +299,61 @@ const TaskSubmissionsPage = () => {
     useEffect(() => {
         fetchPageData();
     }, [fetchPageData]);
+
+    const reloadTaskComments = useCallback(async () => {
+        if (!task?.id) {
+            return;
+        }
+
+        try {
+            const commentsData = await commentService.getTaskComments(task.id, 100).catch((error) => {
+                if (error.response?.status === 404) {
+                    return emptyPaginatedResponse;
+                }
+
+                throw error;
+            });
+
+            setTaskComments(extractCollection(commentsData));
+        } catch (error) {
+            console.error(error);
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось обновить комментарии');
+        }
+    }, [showToast, task?.id]);
+
+    const pushCreatedComment = useCallback((response, fallback) => {
+        const createdComment = normalizeCommentNode(getCommentFromResponse(response), fallback, user);
+        setTaskComments((previousComments) => addCommentToTree(previousComments, createdComment));
+    }, [user]);
+
+    const handleToggleReviewer = (teacherId) => {
+        setReviewerDraftIds((previous) => (
+            previous.includes(teacherId)
+                ? previous.filter((id) => id !== teacherId)
+                : [...previous, teacherId]
+        ));
+    };
+
+    const handleSaveReviewers = async () => {
+        if (!task) {
+            return;
+        }
+
+        setSavingReviewers(true);
+
+        try {
+            const data = await taskService.updateTaskReviewers(task.id, reviewerDraftIds);
+            const nextReviewers = data.reviewers || [];
+            setReviewers(nextReviewers);
+            setReviewerDraftIds(nextReviewers.map((reviewer) => Number(reviewer.id)));
+            showToast('success', 'Доступ к проверке обновлён');
+        } catch (error) {
+            console.error(error);
+            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось обновить проверяющих');
+        } finally {
+            setSavingReviewers(false);
+        }
+    };
 
     const handleDownload = async (file) => {
         try {
@@ -336,16 +408,18 @@ const TaskSubmissionsPage = () => {
 
     const handleCreatePrivateComment = async (group, body) => {
         try {
-            await commentService.createComment({
+            const payload = {
                 course_id: course.id,
                 task_id: task.id,
                 discipline_id: discipline?.id,
                 file_id: group.latestSubmission.id,
                 body
-            });
+            };
+            const response = await commentService.createComment(payload);
+            pushCreatedComment(response, payload);
 
             showToast('success', 'Личный комментарий отправлен');
-            await fetchPageData();
+            void reloadTaskComments();
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
@@ -354,17 +428,19 @@ const TaskSubmissionsPage = () => {
 
     const handleReplyToPrivateComment = async (comment, body) => {
         try {
-            await commentService.createComment({
+            const payload = {
                 course_id: course.id,
                 task_id: task.id,
                 discipline_id: discipline?.id,
                 file_id: comment.file_id,
                 parent_id: comment.id,
                 body
-            });
+            };
+            const response = await commentService.createComment(payload);
+            pushCreatedComment(response, payload);
 
             showToast('success', 'Ответ отправлен');
-            await fetchPageData();
+            void reloadTaskComments();
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
@@ -442,6 +518,69 @@ const TaskSubmissionsPage = () => {
                         </div>
                     </div>
                 </section>
+
+                {canManageReviewers && (
+                    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <HiShieldCheck className="h-5 w-5 text-purple-300" />
+                                    <h2 className="text-xl font-semibold text-white">Доступ к проверке</h2>
+                                </div>
+                                <p className="mt-2 text-sm text-slate-500">
+                                    Автор задания проверяет работы всегда. Здесь можно добавить других преподавателей курса.
+                                </p>
+                                <p className="mt-2 text-xs text-slate-500">
+                                    Назначено дополнительно: {reviewers.length}
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleSaveReviewers}
+                                disabled={savingReviewers}
+                                className="rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                            >
+                                {savingReviewers ? 'Сохраняем...' : 'Сохранить доступ'}
+                            </button>
+                        </div>
+
+                        {teacherOptions.length === 0 ? (
+                            <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-6 text-sm text-slate-500">
+                                В курсе пока нет других преподавателей.
+                            </div>
+                        ) : (
+                            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                {teacherOptions.map((teacher) => {
+                                    const isSelected = reviewerDraftIds.includes(Number(teacher.id));
+
+                                    return (
+                                        <button
+                                            key={teacher.id}
+                                            type="button"
+                                            onClick={() => handleToggleReviewer(Number(teacher.id))}
+                                            className={`flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition ${
+                                                isSelected
+                                                    ? 'border-purple-400/30 bg-purple-500/10'
+                                                    : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.05]'
+                                            }`}
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-medium text-white">{teacher.name}</p>
+                                                <p className="truncate text-xs text-slate-500">{teacher.email}</p>
+                                            </div>
+                                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                                                isSelected ? 'bg-purple-600 text-white' : 'bg-white/10 text-slate-500'
+                                            }`}>
+                                                {isSelected && <HiCheck className="h-4 w-4" />}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
+                )}
 
                 {groupedSubmissions.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 px-6 py-16 text-center text-slate-500">

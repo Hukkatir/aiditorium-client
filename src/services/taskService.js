@@ -91,5 +91,17 @@ export const taskService = {
             per_page: perPage
         });
         return response.data;
+    },
+
+    async getTaskReviewers(taskId) {
+        const response = await apiClient.get(`/task/${taskId}/reviewers`);
+        return response.data;
+    },
+
+    async updateTaskReviewers(taskId, reviewerIds) {
+        const response = await apiClient.post(`/task/${taskId}/reviewers`, {
+            reviewer_ids: reviewerIds
+        });
+        return response.data;
     }
 };

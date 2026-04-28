@@ -201,15 +201,14 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 px-4 py-4 backdrop-blur-sm"
-                onClick={handleClose}
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 px-3 py-3 backdrop-blur-sm"
             >
-                <div className="w-full max-w-5xl">
+                <div className="max-h-full w-full max-w-5xl">
                     <motion.div
                         initial={{ scale: 0.98, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.98, opacity: 0 }}
-                        className="flex h-[min(840px,calc(100vh-32px))] w-full flex-col overflow-hidden rounded-2xl border border-purple-500/20 bg-[#17141F] p-4 shadow-2xl md:p-5"
+                        className="flex h-[calc(100vh-24px)] max-h-[820px] w-full flex-col overflow-hidden rounded-2xl border border-purple-500/20 bg-[#17141F] p-4 shadow-2xl md:p-5"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="mb-4 flex shrink-0 items-start justify-between gap-4 border-b border-white/10 pb-4">
@@ -275,7 +274,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                                 </div>
                             </div>
 
-                            <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr),300px]">
+                            <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr),280px]">
                                 <section className="flex min-h-0 flex-col rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5 md:p-4">
                                     <RichTextEditor
                                         id="create-task-description"
@@ -289,7 +288,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                                     />
                                 </section>
 
-                                <aside className="flex min-h-0 flex-col rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5 md:p-4">
+                                <aside className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-purple-500/10 bg-white/[0.03] p-3.5 md:p-4">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
                                             <h3 className="text-base font-semibold text-white">Материалы задания</h3>
@@ -306,7 +305,7 @@ const CreateTaskModal = ({ isOpen, onClose, onSuccess, courseId, disciplineId })
                                     </div>
 
                                     {materials.length > 0 ? (
-                                        <div className="mt-3 max-h-40 space-y-2 overflow-y-auto pr-1">
+                                        <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                                             {materials.map((file, index) => (
                                                 <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
                                                     <div className="flex min-w-0 items-center gap-2">

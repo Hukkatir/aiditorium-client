@@ -48,7 +48,7 @@ const FileTileGrid = ({
     }
 
     return (
-        <div className="grid gap-3">
+        <div className={compact ? 'grid gap-2' : 'grid gap-3'}>
             {files.map((file) => {
                 const fileKind = getFileKind(file);
                 const meta = FILE_KIND_META[fileKind] || FILE_KIND_META.file;
@@ -56,33 +56,54 @@ const FileTileGrid = ({
                 const fileName = getDisplayFileName(file);
 
                 return (
-                    <div key={file.id} className={`rounded-xl border border-white/10 bg-white/[0.03] ${compact ? 'p-1.5' : 'p-2'}`}>
-                        <Link
-                            to={buildFilePreviewPath(file.id)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={`group flex items-center gap-3 rounded-xl transition hover:bg-white/[0.05] ${compact ? 'px-2.5 py-2.5' : 'px-3 py-3'}`}
-                        >
-                            <div className={`flex shrink-0 items-center justify-center rounded-xl ${meta.iconClass} ${compact ? 'h-9 w-9' : 'h-11 w-11'}`}>
-                                <Icon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
-                            </div>
+                    <div key={file.id} className={`rounded-xl border border-white/10 bg-white/[0.03] ${compact ? 'p-1' : 'p-2'}`}>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            <Link
+                                to={buildFilePreviewPath(file.id)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`group flex min-w-0 flex-1 items-center gap-3 rounded-xl transition hover:bg-white/[0.05] ${compact ? 'px-2 py-2' : 'px-3 py-3'}`}
+                            >
+                                <div className={`flex shrink-0 items-center justify-center rounded-xl ${meta.iconClass} ${compact ? 'h-8 w-8' : 'h-11 w-11'}`}>
+                                    <Icon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
+                                </div>
 
-                            <div className="min-w-0 flex-1">
-                                <div className={`truncate text-white ${compact ? 'text-[13px] font-medium' : 'text-sm font-medium'}`}>{fileName}</div>
-                            </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className={`truncate text-white ${compact ? 'text-[13px] font-medium' : 'text-sm font-medium'}`}>{fileName}</div>
+                                </div>
 
-                            <HiArrowTopRightOnSquare className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:text-white" />
-                        </Link>
+                                <HiArrowTopRightOnSquare className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:text-white" />
+                            </Link>
 
-                        {(onDownload || onRemove) && (
-                            <div className={`flex flex-wrap gap-2 ${compact ? 'mt-1 px-2.5 pb-1' : 'mt-2 px-3 pb-1'}`}>
+                            {compact && onDownload && (
+                                <button
+                                    type="button"
+                                    onClick={() => onDownload(file)}
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-slate-200 transition hover:bg-white/15"
+                                    title="Скачать"
+                                >
+                                    <HiArrowDownTray className="h-4 w-4" />
+                                </button>
+                            )}
+                            {compact && onRemove && (
+                                <button
+                                    type="button"
+                                    onClick={() => onRemove(file)}
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-200 transition hover:bg-red-500/20"
+                                    title="Убрать"
+                                >
+                                    <HiTrash className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+
+                        {!compact && (onDownload || onRemove) && (
+                            <div className="mt-2 flex flex-wrap gap-2 px-3 pb-1">
                                 {onDownload && (
                                     <button
                                         type="button"
                                         onClick={() => onDownload(file)}
-                                        className={`inline-flex items-center gap-2 rounded-xl bg-white/10 font-medium text-slate-200 transition hover:bg-white/15 ${
-                                            compact ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'
-                                        }`}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/15"
                                     >
                                         <HiArrowDownTray className="h-4 w-4" />
                                         Скачать
@@ -92,9 +113,7 @@ const FileTileGrid = ({
                                     <button
                                         type="button"
                                         onClick={() => onRemove(file)}
-                                        className={`inline-flex items-center gap-2 rounded-xl bg-red-500/10 font-medium text-red-200 transition hover:bg-red-500/16 ${
-                                            compact ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2 text-xs'
-                                        }`}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
                                     >
                                         <HiTrash className="h-4 w-4" />
                                         Убрать

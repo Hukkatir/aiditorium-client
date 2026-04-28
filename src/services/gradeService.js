@@ -11,10 +11,11 @@ export const gradeService = {
         return response.data;
     },
 
-    async getCourseGrades(courseId, perPage = 100) {
+    async getCourseGrades(courseId, perPage = 100, taskId = null) {
         const response = await apiClient.post('/grade/course', {
             course_id: courseId,
-            per_page: perPage
+            per_page: perPage,
+            ...(taskId ? { task_id: taskId } : {})
         });
         return response.data;
     },

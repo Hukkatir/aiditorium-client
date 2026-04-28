@@ -26,6 +26,7 @@ import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 import { extractCollection } from '../utils/apiUtils';
+import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { REGULAR_FILE_MAX_BYTES, formatFileSize, getFilesOverSizeLimit, getFirstFileValidationError, getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import { buildDisciplinePath, buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
 
@@ -51,24 +52,20 @@ const getSubmissionStatus = (deadline, latestSubmission) => {
     if (!latestSubmission) {
         return {
             label: 'Не сдано',
-            color: 'text-slate-300',
-            hint: deadline ? `Срок сдачи: ${formatDateTime(deadline)}` : 'Работа еще не отправлена'
+            className: 'border-red-500/20 bg-red-500/10 text-red-200'
         };
     }
     const submittedAt = new Date(latestSubmission.created_at).getTime();
     const isLate = deadlineTimestamp && submittedAt > deadlineTimestamp;
-    const submittedStr = `Сдано ${formatDateTime(latestSubmission.created_at)}`;
     if (isLate) {
         return {
             label: 'Сдано с опозданием',
-            color: 'text-amber-300',
-            hint: submittedStr
+            className: 'border-amber-500/20 bg-amber-500/10 text-amber-200'
         };
     }
     return {
         label: 'Сдано',
-        color: 'text-emerald-300',
-        hint: submittedStr
+        className: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
     };
 };
 
@@ -113,6 +110,10 @@ const TaskDetailPage = () => {
     const [myGrade, setMyGrade] = useState(null);
 
     const isTeacher = currentRole === 'teacher';
+    const canReviewTask = isTeacher && (
+        Number(task?.user_id) === Number(user?.id)
+        || (task?.reviewers || []).some((reviewer) => Number(reviewer.id) === Number(user?.id))
+    );
     const disciplinePath = buildDisciplinePath(
         course || { id: task?.course_id, slug: courseIdOrSlug },
         discipline || { id: task?.discipline_id, slug: disciplineIdOrSlug }
@@ -283,6 +284,11 @@ const TaskDetailPage = () => {
         ]);
     };
 
+    const pushCreatedComment = useCallback((response, fallback) => {
+        const createdComment = normalizeCommentNode(getCommentFromResponse(response), fallback, user);
+        setTaskComments((previousComments) => addCommentToTree(previousComments, createdComment));
+    }, [user]);
+
     const handleDelete = async () => {
         if (!task) return;
         try {
@@ -351,14 +357,15 @@ const TaskDetailPage = () => {
     const handleCreatePublicComment = async (body) => {
         if (!task || !course) return;
         try {
-            await commentService.createComment({
+            const payload = {
                 course_id: course.id,
                 task_id: task.id,
                 discipline_id: discipline?.id,
                 body
-            });
+            };
+            const response = await commentService.createComment(payload);
+            pushCreatedComment(response, payload);
             showToast('success', 'Комментарий отправлен');
-            await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
@@ -368,15 +375,16 @@ const TaskDetailPage = () => {
     const handleReplyToPublicComment = async (comment, body) => {
         if (!task || !course) return;
         try {
-            await commentService.createComment({
+            const payload = {
                 course_id: course.id,
                 task_id: task.id,
                 discipline_id: discipline?.id,
                 parent_id: comment.id,
                 body
-            });
+            };
+            const response = await commentService.createComment(payload);
+            pushCreatedComment(response, payload);
             showToast('success', 'Ответ отправлен');
-            await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
@@ -389,15 +397,16 @@ const TaskDetailPage = () => {
             return;
         }
         try {
-            await commentService.createComment({
+            const payload = {
                 course_id: course.id,
                 task_id: task.id,
                 discipline_id: discipline?.id,
                 file_id: latestSubmission.id,
                 body
-            });
+            };
+            const response = await commentService.createComment(payload);
+            pushCreatedComment(response, payload);
             showToast('success', 'Личный комментарий отправлен');
-            await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
@@ -407,16 +416,17 @@ const TaskDetailPage = () => {
     const handleReplyToPrivateComment = async (comment, body) => {
         if (!task || !course) return;
         try {
-            await commentService.createComment({
+            const payload = {
                 course_id: course.id,
                 task_id: task.id,
                 discipline_id: discipline?.id,
                 file_id: comment.file_id,
                 parent_id: comment.id,
                 body
-            });
+            };
+            const response = await commentService.createComment(payload);
+            pushCreatedComment(response, payload);
             showToast('success', 'Ответ отправлен');
-            await loadTaskComments(task.id, course.id, currentRole);
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
@@ -479,7 +489,7 @@ const TaskDetailPage = () => {
                                 <h1 className="mt-2 text-3xl font-bold text-white md:text-4xl">{task.name}</h1>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                {isTeacher && (
+                                {canReviewTask && (
                                     <>
                                         <button
                                             type="button"
@@ -512,9 +522,17 @@ const TaskDetailPage = () => {
 
                         {/* Блок статуса сдачи (для студента) – в одну строку */}
                         {!isTeacher && submissionStatus && (
-                            <div className={`mt-4 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm ${submissionStatus.color}`}>
-                                <span className="font-medium">{submissionStatus.label}</span>
-                                <span className="text-slate-400">{submissionStatus.hint}</span>
+                            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+                                <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-medium ${submissionStatus.className}`}>
+                                    {submissionStatus.label}
+                                </span>
+                                <span className={`inline-flex items-center rounded-full border px-3 py-1.5 font-medium ${
+                                    myGrade
+                                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                                        : 'border-white/10 bg-white/10 text-slate-300'
+                                }`}>
+                                    {myGrade ? `Оценка: ${myGrade.grade}/${maxTaskScore}` : `Оценка: не выставлена/${maxTaskScore}`}
+                                </span>
                             </div>
                         )}
                     </div>
@@ -536,13 +554,19 @@ const TaskDetailPage = () => {
 
                             {/* Материалы внутри блока описания */}
                             {taskMaterials.length > 0 && (
-                                <div className="mt-6 pt-4 border-t border-white/10">
-                                    <h3 className="text-md font-medium text-white mb-3">Материалы</h3>
-                                    <FileTileGrid
-                                        files={taskMaterials}
-                                        emptyMessage=""
-                                        onDownload={handleMaterialDownload}
-                                    />
+                                <div className="mt-6 border-t border-white/10 pt-4">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <h3 className="text-md font-medium text-white">Материалы</h3>
+                                        <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-300">{taskMaterials.length}</span>
+                                    </div>
+                                    <div className="max-h-[260px] overflow-y-auto rounded-xl border border-white/10 bg-black/10 p-2 pr-1">
+                                        <FileTileGrid
+                                            files={taskMaterials}
+                                            emptyMessage=""
+                                            onDownload={handleMaterialDownload}
+                                            compact
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </section>

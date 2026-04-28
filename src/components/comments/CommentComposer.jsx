@@ -12,6 +12,8 @@ const CommentComposer = ({
 
     const handleSubmit = async (event) => {
         event.preventDefault();
+        event.stopPropagation();
+
         const body = value.trim();
 
         if (!body || disabled || submitting) {

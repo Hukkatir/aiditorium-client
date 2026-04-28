@@ -59,16 +59,7 @@ const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
             if (formData.slug.trim()) form.append('slug', formData.slug);
             if (backgroundFile) form.append('background_logo', backgroundFile);
 
-            const createdCourseData = await courseService.createCourse(form);
-            const createdCourse = createdCourseData.course || createdCourseData;
-
-            if (createdCourse?.id && !createdCourse?.invite_code_teacher) {
-                try {
-                    await courseService.generateTeacherCode(createdCourse.id);
-                } catch (teacherCodeError) {
-                    console.error('Teacher code generation failed right after course creation', teacherCodeError);
-                }
-            }
+            await courseService.createCourse(form);
 
             onSuccess();
             onClose();
