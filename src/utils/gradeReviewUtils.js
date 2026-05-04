@@ -9,6 +9,10 @@ const getReviewTimestamp = (review = {}) => new Date(
 ).getTime();
 
 export const getNumericGrade = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return null;
+    }
+
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
 };
@@ -100,7 +104,7 @@ export const getLatestAiReviewByStudent = (aiReviews = [], groupedSubmissions = 
 
 export const getAiReviewScore = (review) => getNumericGrade(review?.recommended_score);
 
-export const getSourceValues = (sources = {}, aiReview = null) => {
+export const getSourceValues = (sources = {}, aiReview = null, peerOverride = null) => {
     const teacher = getNumericGrade(sources.teacher?.grade);
     const aiGrade = getNumericGrade(sources.ai?.grade);
     const aiReviewScore = getAiReviewScore(aiReview);
@@ -108,7 +112,7 @@ export const getSourceValues = (sources = {}, aiReview = null) => {
     return {
         teacher,
         ai: aiGrade ?? aiReviewScore,
-        peer: sources.peerAverage ?? null
+        peer: getNumericGrade(peerOverride) ?? sources.peerAverage ?? null
     };
 };
 

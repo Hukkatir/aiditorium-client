@@ -8,6 +8,7 @@ import CourseDetailPage from './pages/CourseDetailPage';
 import DisciplineDetailPage from './pages/DisciplineDetailPage';
 import FilePreviewPage from './pages/FilePreviewPage';
 import MyTasksPage from './pages/MyTasksPage';
+import PeerReviewPage from './pages/PeerReviewPage';
 import TaskDetailPage from './pages/TaskDetailPage';
 import TaskReviewSettingsPage from './pages/TaskReviewSettingsPage';
 import TaskSubmissionsPage from './pages/TaskSubmissionsPage';
@@ -60,6 +61,11 @@ function App() {
                 <Route path="/my-tasks" element={
                     <ProtectedRoute>
                         <MyTasksPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/peer-review" element={
+                    <ProtectedRoute>
+                        <PeerReviewPage />
                     </ProtectedRoute>
                 } />
                 <Route path="/file/:fileId/preview" element={

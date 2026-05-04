@@ -4,6 +4,7 @@ import {
     HiArrowLeft,
     HiArrowDownTray,
     HiArrowPath,
+    HiBolt,
     HiCalendar,
     HiCheck,
     HiCog6Tooth,
@@ -14,6 +15,7 @@ import {
     HiShieldCheck,
     HiStar,
     HiTableCells,
+    HiUserGroup,
     HiUserCircle
 } from 'react-icons/hi2';
 import CommentThreadList from '../components/comments/CommentThreadList';
@@ -43,9 +45,18 @@ import {
     formatGradeValue,
     getAiReviewScore,
     getLatestAiReviewByStudent,
+    getNumericGrade,
     getSourceValues
 } from '../utils/gradeReviewUtils';
+import { loadFinalGrades, saveFinalGrade } from '../utils/finalGradeUtils';
 import { DEFAULT_PEER_REVIEW_SETTINGS, loadPeerReviewSettings } from '../utils/reviewSettingsUtils';
+import {
+    buildPeerAveragesByStudent,
+    generatePeerReviewAssignments,
+    loadPeerReviewAssignments,
+    loadPeerReviewResults,
+    savePeerReviewAssignments
+} from '../utils/peerReviewUtils';
 
 const formatDateTime = (dateString) => {
     if (!dateString) {
@@ -76,6 +87,24 @@ const getCurrentCourseRole = (course, users, user) => {
 const emptyPaginatedResponse = { data: [] };
 
 const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
+
+const getFriendlyAiErrorMessage = (error) => {
+    const message = getApiMessage(error);
+
+    if (/ZipArchive/i.test(message)) {
+        return 'AI не смог прочитать DOCX: на backend-сервере не включено PHP-расширение zip (ZipArchive). После установки php-zip проверка DOCX заработает.';
+    }
+
+    if (/Elephant Alpha|Ling-2\.6|ling-2\.6|OpenRouter request failed/i.test(message)) {
+        return 'OpenRouter не принял выбранную AI-модель. В backend .env нужно заменить AI_MODEL на актуальный id модели, например inclusionai/ling-2.6-flash:free, и очистить кеш конфига.';
+    }
+
+    return message;
+};
+
+const formatAiRuntimeMessage = (message = '') => (
+    getFriendlyAiErrorMessage({ response: { data: { message } } }) || message
+);
 
 const isReviewPermissionError = (error) => {
     const message = getApiMessage(error);
@@ -138,11 +167,18 @@ const TaskSubmissionsPage = () => {
     const [grades, setGrades] = useState([]);
     const [aiReviews, setAiReviews] = useState([]);
     const [peerSettings, setPeerSettings] = useState(DEFAULT_PEER_REVIEW_SETTINGS);
+    const [peerAssignments, setPeerAssignments] = useState([]);
+    const [peerResults, setPeerResults] = useState([]);
     const [gradeInputs, setGradeInputs] = useState({});
+    const [finalGrades, setFinalGrades] = useState({});
+    const [finalGradeInputs, setFinalGradeInputs] = useState({});
     const [savingGradeFor, setSavingGradeFor] = useState(null);
+    const [savingFinalGradeFor, setSavingFinalGradeFor] = useState(null);
     const [queueingAiReviewFor, setQueueingAiReviewFor] = useState(null);
+    const [queueingAllAiReviews, setQueueingAllAiReviews] = useState(false);
     const [selectedStudentId, setSelectedStudentId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [studentFilter, setStudentFilter] = useState('all');
     const [loading, setLoading] = useState(true);
     const [savingReviewers, setSavingReviewers] = useState(false);
     const [canManageReviewers, setCanManageReviewers] = useState(false);
@@ -225,6 +261,11 @@ const TaskSubmissionsPage = () => {
         [aiReviews, groupedSubmissions]
     );
 
+    const peerResultsByStudent = useMemo(
+        () => buildPeerAveragesByStudent(peerResults, task?.id),
+        [peerResults, task?.id]
+    );
+
     const privateCommentCounts = useMemo(() => {
         const counts = new Map();
 
@@ -243,11 +284,21 @@ const TaskSubmissionsPage = () => {
     }, [submissionOwners, taskComments]);
 
     const filteredGroups = useMemo(() => {
-        if (!deferredSearchQuery) {
-            return groupedSubmissions;
-        }
-
         return groupedSubmissions.filter((group) => {
+            const hasTeacherGrade = gradesByStudent.has(group.userId);
+
+            if (studentFilter === 'graded' && !hasTeacherGrade) {
+                return false;
+            }
+
+            if (studentFilter === 'ungraded' && hasTeacherGrade) {
+                return false;
+            }
+
+            if (!deferredSearchQuery) {
+                return true;
+            }
+
             const haystack = [
                 group.user?.name,
                 group.user?.email,
@@ -259,7 +310,7 @@ const TaskSubmissionsPage = () => {
 
             return haystack.includes(deferredSearchQuery);
         });
-    }, [deferredSearchQuery, groupedSubmissions]);
+    }, [deferredSearchQuery, gradesByStudent, groupedSubmissions, studentFilter]);
 
     const selectedGroup = useMemo(
         () => filteredGroups.find((group) => group.userId === selectedStudentId) || filteredGroups[0] || null,
@@ -282,13 +333,18 @@ const TaskSubmissionsPage = () => {
     );
     const selectedAiReview = selectedGroup ? latestAiReviewByStudent.get(selectedGroup.userId) : null;
     const selectedSourceValues = useMemo(
-        () => getSourceValues(selectedGradeSources, selectedAiReview),
-        [selectedAiReview, selectedGradeSources]
+        () => getSourceValues(
+            selectedGradeSources,
+            selectedAiReview,
+            selectedGroup ? peerResultsByStudent.get(selectedGroup.userId) : null
+        ),
+        [peerResultsByStudent, selectedAiReview, selectedGradeSources, selectedGroup]
     );
     const selectedAverageGrade = useMemo(
         () => calculateAverageGrade(selectedSourceValues),
         [selectedSourceValues]
     );
+    const selectedFinalGrade = selectedGroup ? getNumericGrade(finalGrades[selectedGroup.userId]?.grade) : null;
 
     const gradedCount = useMemo(
         () => groupedSubmissions.filter((group) => gradesByStudent.has(group.userId)).length,
@@ -297,11 +353,34 @@ const TaskSubmissionsPage = () => {
 
     const latestSubmittedAt = groupedSubmissions[0]?.latestSubmission?.created_at || null;
 
+    const aiReviewStats = useMemo(() => {
+        const stats = {
+            total: aiReviews.length,
+            completed: 0,
+            active: 0,
+            failed: 0
+        };
+
+        aiReviews.forEach((review) => {
+            const status = String(review?.status?.value || review?.status || '').toLowerCase();
+            if (status === 'completed') {
+                stats.completed += 1;
+            } else if (status === 'failed') {
+                stats.failed += 1;
+            } else if (status) {
+                stats.active += 1;
+            }
+        });
+
+        return stats;
+    }, [aiReviews]);
+
     const journalRows = useMemo(() => groupedSubmissions.map((group) => {
         const sources = gradeSourcesByStudent.get(group.userId) || {};
         const aiReview = latestAiReviewByStudent.get(group.userId);
-        const values = getSourceValues(sources, aiReview);
+        const values = getSourceValues(sources, aiReview, peerResultsByStudent.get(group.userId));
         const averageGrade = calculateAverageGrade(values);
+        const finalGrade = getNumericGrade(finalGrades[group.userId]?.grade);
 
         return {
             studentId: group.userId,
@@ -313,10 +392,10 @@ const TaskSubmissionsPage = () => {
             aiGrade: values.ai,
             peerGrade: values.peer,
             averageGrade,
-            finalGrade: values.teacher ?? averageGrade,
+            finalGrade,
             aiReviewStatus: getAiReviewStatus(aiReview).label
         };
-    }), [gradeSourcesByStudent, groupedSubmissions, latestAiReviewByStudent]);
+    }), [finalGrades, gradeSourcesByStudent, groupedSubmissions, latestAiReviewByStudent, peerResultsByStudent]);
 
     useEffect(() => {
         setGradeInputs((previous) => {
@@ -330,6 +409,21 @@ const TaskSubmissionsPage = () => {
             return next;
         });
     }, [gradesByStudent, groupedSubmissions]);
+
+    useEffect(() => {
+        setFinalGradeInputs((previous) => {
+            const next = { ...previous };
+
+            groupedSubmissions.forEach((group) => {
+                const savedFinalGrade = getNumericGrade(finalGrades[group.userId]?.grade);
+                next[group.userId] = savedFinalGrade !== null
+                    ? String(savedFinalGrade)
+                    : (previous[group.userId] ?? '');
+            });
+
+            return next;
+        });
+    }, [finalGrades, groupedSubmissions]);
 
     useEffect(() => {
         if (!filteredGroups.length) {
@@ -410,6 +504,9 @@ const TaskSubmissionsPage = () => {
             setTaskComments(extractCollection(commentsData));
             setAiReviews(extractCollection(aiReviewsData, 'reviews'));
             setPeerSettings(loadPeerReviewSettings(taskObject.id));
+            setPeerAssignments(loadPeerReviewAssignments(taskObject.id));
+            setPeerResults(loadPeerReviewResults(taskObject.id));
+            setFinalGrades(loadFinalGrades(taskObject.id));
 
             const canonicalPath = buildTaskSubmissionsPath(courseObject, disciplineObject, taskObject);
             if (window.location.pathname !== canonicalPath) {
@@ -514,21 +611,42 @@ const TaskSubmissionsPage = () => {
         }));
     };
 
-    const handleUseAverageGrade = (group) => {
+    const setFinalGradeInput = (studentId, value) => {
+        setFinalGradeInputs((previous) => ({
+            ...previous,
+            [studentId]: value === null || value === undefined ? '' : String(value)
+        }));
+    };
+
+    const handleUseAverageFinalGrade = (group) => {
         const sources = gradeSourcesByStudent.get(group.userId) || {};
         const aiReview = latestAiReviewByStudent.get(group.userId);
-        const averageGrade = calculateAverageGrade(getSourceValues(sources, aiReview));
+        const averageGrade = calculateAverageGrade(
+            getSourceValues(sources, aiReview, peerResultsByStudent.get(group.userId))
+        );
 
         if (averageGrade === null) {
             showToast('error', 'Пока нет оценок, из которых можно посчитать среднее');
             return;
         }
 
-        setGradeInput(group.userId, averageGrade);
+        setFinalGradeInput(group.userId, averageGrade);
         showToast('success', 'Средняя оценка подставлена в итоговый балл');
     };
 
-    const handleUseAiGrade = (group) => {
+    const handleUseTeacherFinalGrade = (group) => {
+        const teacherGrade = getNumericGrade(gradeSourcesByStudent.get(group.userId)?.teacher?.grade);
+
+        if (teacherGrade === null) {
+            showToast('error', 'Сначала сохраните оценку преподавателя');
+            return;
+        }
+
+        setFinalGradeInput(group.userId, teacherGrade);
+        showToast('success', 'Оценка преподавателя подставлена в итог');
+    };
+
+    const handleUseAiFinalGrade = (group) => {
         const aiReview = latestAiReviewByStudent.get(group.userId);
         const aiGrade = getAiReviewScore(aiReview);
 
@@ -537,7 +655,7 @@ const TaskSubmissionsPage = () => {
             return;
         }
 
-        setGradeInput(group.userId, aiGrade);
+        setFinalGradeInput(group.userId, aiGrade);
         showToast('success', 'Оценка AI подставлена в итоговый балл');
     };
 
@@ -554,10 +672,73 @@ const TaskSubmissionsPage = () => {
             await reloadAiReviews();
         } catch (error) {
             console.error(error);
-            showToast('error', getApiMessage(error) || 'Не удалось запустить AI-проверку. Проверьте настройки критериев.');
+            showToast('error', getFriendlyAiErrorMessage(error) || 'Не удалось запустить AI-проверку. Проверьте настройки критериев.', 6000);
         } finally {
             setQueueingAiReviewFor(null);
         }
+    };
+
+    const handleQueueAllAiReviews = async () => {
+        if (!task?.id || !groupedSubmissions.length) {
+            return;
+        }
+
+        setQueueingAllAiReviews(true);
+        let successCount = 0;
+        let failedMessage = '';
+
+        try {
+            for (const group of groupedSubmissions) {
+                try {
+                    const hasReview = latestAiReviewByStudent.has(group.userId);
+                    await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, hasReview);
+                    successCount += 1;
+                } catch (error) {
+                    console.error(error);
+                    failedMessage = failedMessage || getFriendlyAiErrorMessage(error) || 'Не все работы удалось отправить на AI-проверку.';
+                }
+            }
+
+            await reloadAiReviews();
+
+            if (successCount > 0) {
+                showToast('success', `AI-проверка запущена для работ: ${successCount}`);
+            }
+
+            if (failedMessage) {
+                showToast('error', failedMessage, 7000);
+            }
+        } finally {
+            setQueueingAllAiReviews(false);
+        }
+    };
+
+    const handleGeneratePeerAssignments = () => {
+        if (!task || !course || !discipline) {
+            return;
+        }
+
+        if (!peerSettings.enabled) {
+            showToast('error', 'Сначала включите взаимопроверку в настройках проверки');
+            return;
+        }
+
+        const assignments = generatePeerReviewAssignments({
+            task,
+            course,
+            discipline,
+            groups: groupedSubmissions,
+            settings: peerSettings
+        });
+
+        if (!assignments.length) {
+            showToast('error', 'Для взаимопроверки нужно минимум две сданные работы');
+            return;
+        }
+
+        savePeerReviewAssignments(task.id, assignments);
+        setPeerAssignments(assignments);
+        showToast('success', `Задания для взаимопроверки созданы: ${assignments.length}`);
     };
 
     const handleExportJson = () => {
@@ -681,6 +862,37 @@ const TaskSubmissionsPage = () => {
         }
     };
 
+    const handleSaveFinalGrade = (group) => {
+        const rawValue = finalGradeInputs[group.userId]?.trim();
+
+        if (!rawValue) {
+            showToast('error', 'Введите итоговую оценку');
+            return;
+        }
+
+        const numericGrade = Number(rawValue);
+        if (!Number.isFinite(numericGrade) || numericGrade < 0 || numericGrade > gradeLimit) {
+            showToast('error', `Итоговая оценка должна быть числом от 0 до ${gradeLimit}`);
+            return;
+        }
+
+        setSavingFinalGradeFor(group.userId);
+
+        try {
+            const savedGrade = saveFinalGrade(task.id, group.userId, numericGrade);
+            setFinalGrades((previous) => ({
+                ...previous,
+                [group.userId]: savedGrade
+            }));
+            showToast('success', 'Итоговая оценка сохранена');
+        } catch (error) {
+            console.error(error);
+            showToast('error', 'Не удалось сохранить итоговую оценку');
+        } finally {
+            setSavingFinalGradeFor(null);
+        }
+    };
+
     const handleCreatePrivateComment = async (group, body) => {
         try {
             const payload = {
@@ -763,47 +975,63 @@ const TaskSubmissionsPage = () => {
                 </button>
 
                 <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-5">
-                        <div className="max-w-4xl">
-                            <div className="text-[11px] uppercase tracking-[0.18em] text-purple-300">
-                                Проверка работ
-                            </div>
-                            <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">{task.name}</h1>
-                            <div className="mt-4 max-w-3xl">
-                                <RichTextContent
-                                    value={task.description}
-                                    fallback="Описание задания не заполнено."
-                                    className="text-gray-400"
-                                />
-                            </div>
+                    <div className="max-w-4xl">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-purple-300">
+                            Проверка работ
                         </div>
+                        <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">{task.name}</h1>
+                        <div className="mt-4 max-w-3xl">
+                            <RichTextContent
+                                value={task.description}
+                                fallback="Описание задания не заполнено."
+                                className="text-gray-400"
+                            />
+                        </div>
+                    </div>
 
-                        <div className="space-y-3">
-                            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-                            <div className="flex items-center gap-2">
-                                <HiCalendar className="h-4 w-4 text-slate-500" />
-                                <span>Срок сдачи: {task.deadline ? formatDateTime(task.deadline) : 'не указан'}</span>
+                    <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <HiCalendar className="h-4 w-4" />
+                                Срок сдачи
                             </div>
-                            <div className="mt-3 flex items-center gap-2">
-                                <HiStar className="h-4 w-4 text-yellow-400" />
-                                <span>Максимум: {gradeLimit} баллов</span>
+                            <p className="mt-2 text-sm font-medium text-white">{task.deadline ? formatDateTime(task.deadline) : 'не указан'}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <HiStar className="h-4 w-4" />
+                                Максимум
                             </div>
-                            <div className="mt-3 text-xs text-slate-500">
-                                Студентов с работами: {groupedSubmissions.length}
+                            <p className="mt-2 text-sm font-medium text-white">{gradeLimit} баллов</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <HiUserCircle className="h-4 w-4" />
+                                Работы
                             </div>
-                            </div>
-
-                            {canManageReviewers && (
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(reviewSettingsPath)}
-                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20"
-                                >
+                            <p className="mt-2 text-sm font-medium text-white">{groupedSubmissions.length} студентов</p>
+                        </div>
+                        {canManageReviewers ? (
+                            <button
+                                type="button"
+                                onClick={() => navigate(reviewSettingsPath)}
+                                className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4 text-left transition hover:bg-purple-500/20"
+                            >
+                                <div className="flex items-center gap-2 text-sm text-purple-200">
                                     <HiCog6Tooth className="h-4 w-4" />
-                                    Настройки проверки
-                                </button>
-                            )}
-                        </div>
+                                    Настройки
+                                </div>
+                                <p className="mt-2 text-sm font-medium text-white">AI и взаимопроверка</p>
+                            </button>
+                        ) : (
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                <div className="flex items-center gap-2 text-sm text-slate-500">
+                                    <HiShieldCheck className="h-4 w-4" />
+                                    Доступ
+                                </div>
+                                <p className="mt-2 text-sm font-medium text-white">Просмотр проверки</p>
+                            </div>
+                        )}
                     </div>
                 </section>
 
@@ -882,6 +1110,98 @@ const TaskSubmissionsPage = () => {
                                 })}
                             </div>
                         )}
+                    </section>
+                )}
+
+                {!reviewAccessDenied && (
+                    <section className="grid gap-4 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <HiBolt className="h-5 w-5 text-purple-300" />
+                                        <h2 className="text-xl font-semibold text-white">AI-проверка</h2>
+                                    </div>
+                                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                                        Запускайте проверку выбранной работы или сразу всех сданных файлов.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleQueueAllAiReviews}
+                                    disabled={queueingAllAiReviews || groupedSubmissions.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews ? 'animate-spin' : ''}`} />
+                                    {queueingAllAiReviews ? 'Запускаем...' : 'Проверить все работы'}
+                                </button>
+                            </div>
+
+                            <div className="mt-5 grid grid-cols-3 gap-2 text-xs">
+                                <div className="rounded-xl bg-white/[0.04] p-3">
+                                    <p className="text-slate-500">Готово</p>
+                                    <p className="mt-1 text-lg font-semibold text-emerald-200">{aiReviewStats.completed}</p>
+                                </div>
+                                <div className="rounded-xl bg-white/[0.04] p-3">
+                                    <p className="text-slate-500">В работе</p>
+                                    <p className="mt-1 text-lg font-semibold text-purple-200">{aiReviewStats.active}</p>
+                                </div>
+                                <div className="rounded-xl bg-white/[0.04] p-3">
+                                    <p className="text-slate-500">Ошибки</p>
+                                    <p className="mt-1 text-lg font-semibold text-red-200">{aiReviewStats.failed}</p>
+                                </div>
+                            </div>
+
+                            <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100/80">
+                                Если для DOCX появляется “ZipArchive not found”, нужно включить расширение php-zip на backend-сервере.
+                            </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <HiUserGroup className="h-5 w-5 text-purple-300" />
+                                        <h2 className="text-xl font-semibold text-white">Взаимопроверка</h2>
+                                    </div>
+                                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                                        Создайте задания для студентов после настройки режима проверки.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleGeneratePeerAssignments}
+                                    disabled={!peerSettings.enabled || groupedSubmissions.length < 2}
+                                    className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Сформировать задания
+                                </button>
+                            </div>
+
+                            <div className="mt-5 flex flex-wrap gap-2 text-xs">
+                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                    {peerSettings.enabled ? 'Включена' : 'Выключена'}
+                                </span>
+                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                    {peerSettings.mode === 'open' ? 'Открытая' : 'Слепая'}
+                                </span>
+                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                    Назначений: {peerAssignments.length}
+                                </span>
+                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                    Ответов: {peerResults.length}
+                                </span>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => navigate(reviewSettingsPath)}
+                                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-purple-200 transition hover:text-purple-100"
+                            >
+                                <HiCog6Tooth className="h-4 w-4" />
+                                Открыть настройки взаимопроверки
+                            </button>
+                        </div>
                     </section>
                 )}
 
@@ -999,8 +1319,28 @@ const TaskSubmissionsPage = () => {
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">Проверено: {gradedCount}</span>
-                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">Без оценки: {groupedSubmissions.length - gradedCount}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setStudentFilter(studentFilter === 'graded' ? 'all' : 'graded')}
+                                    className={`rounded-full px-3 py-1.5 transition ${
+                                        studentFilter === 'graded'
+                                            ? 'bg-emerald-500/15 text-emerald-200'
+                                            : 'bg-white/10 text-slate-300 hover:bg-white/15'
+                                    }`}
+                                >
+                                    Проверено: {gradedCount}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStudentFilter(studentFilter === 'ungraded' ? 'all' : 'ungraded')}
+                                    className={`rounded-full px-3 py-1.5 transition ${
+                                        studentFilter === 'ungraded'
+                                            ? 'bg-red-500/15 text-red-200'
+                                            : 'bg-white/10 text-slate-300 hover:bg-white/15'
+                                    }`}
+                                >
+                                    Без оценки: {groupedSubmissions.length - gradedCount}
+                                </button>
                                 {latestSubmittedAt && (
                                     <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                         Последняя сдача: {formatDateTime(latestSubmittedAt)}
@@ -1066,7 +1406,7 @@ const TaskSubmissionsPage = () => {
                         {selectedGroup && (
                             <div className="space-y-6">
                                 <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6">
-                                    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),320px]">
+                                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                                         <div className="flex items-start gap-4">
                                             <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-600 to-purple-500">
                                                 {selectedGroup.user?.avatar_url ? (
@@ -1093,80 +1433,102 @@ const TaskSubmissionsPage = () => {
                                             </div>
                                         </div>
 
-                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                                            <label className="block text-sm font-medium text-slate-300" htmlFor={`grade-${selectedGroup.userId}`}>
-                                                Итоговая оценка преподавателя
-                                            </label>
-                                            <p className="mt-2 text-sm text-slate-500">
-                                                Можно поставить вручную или подставить среднее по доступным источникам.
+                                        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/10 px-5 py-4">
+                                            <p className="text-xs text-purple-200/80">Итоговая оценка</p>
+                                            <p className="mt-1 text-2xl font-semibold text-white">
+                                                {formatGradeValue(selectedFinalGrade, gradeLimit)}
                                             </p>
-
-                                            <div className="mt-4 grid gap-2 text-xs">
-                                                <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-slate-300">
-                                                    <span>Преподаватель</span>
-                                                    <span className="font-medium text-white">{formatGradeValue(selectedSourceValues.teacher, gradeLimit)}</span>
-                                                </div>
-                                                <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-slate-300">
-                                                    <span>AI</span>
-                                                    <span className="font-medium text-white">{formatGradeValue(selectedSourceValues.ai, gradeLimit)}</span>
-                                                </div>
-                                                <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-slate-300">
-                                                    <span>Взаимопроверка</span>
-                                                    <span className="font-medium text-white">{formatGradeValue(selectedSourceValues.peer, gradeLimit)}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-4 flex gap-3">
-                                                <input
-                                                    id={`grade-${selectedGroup.userId}`}
-                                                    type="number"
-                                                    min="0"
-                                                    max={gradeLimit}
-                                                    value={gradeInputs[selectedGroup.userId] ?? ''}
-                                                    onChange={(event) => {
-                                                        const nextValue = event.target.value;
-                                                        setGradeInputs((previous) => ({
-                                                            ...previous,
-                                                            [selectedGroup.userId]: nextValue
-                                                        }));
-                                                    }}
-                                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleSaveGrade(selectedGroup)}
-                                                    disabled={savingGradeFor === selectedGroup.userId}
-                                                    className="rounded-xl bg-purple-600 px-4 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
-                                                >
-                                                    {savingGradeFor === selectedGroup.userId ? '...' : 'Сохранить'}
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleUseAverageGrade(selectedGroup)}
-                                                    disabled={selectedAverageGrade === null}
-                                                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    Среднее: {formatGradeValue(selectedAverageGrade, gradeLimit)}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleUseAiGrade(selectedGroup)}
-                                                    disabled={selectedSourceValues.ai === null}
-                                                    className="rounded-xl border border-purple-500/20 bg-purple-500/10 px-3 py-2 text-xs font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    Взять AI
-                                                </button>
-                                            </div>
-
-                                            {selectedStudentGrade && (
-                                                <p className="mt-3 text-sm text-slate-400">
-                                                    Текущая оценка: <span className="text-white">{selectedStudentGrade.grade}/{gradeLimit}</span>
-                                                </p>
-                                            )}
                                         </div>
+                                    </div>
+                                </section>
+
+                                <section className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
+                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                        <div>
+                                            <h2 className="text-xl font-semibold text-white">Сводка оценок</h2>
+                                            <p className="mt-2 text-sm text-slate-500">
+                                                Здесь видно все источники оценивания. Итоговый балл можно поставить вручную или подставить среднее.
+                                            </p>
+                                        </div>
+                                        {selectedFinalGrade !== null && (
+                                            <span className="rounded-full bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-100">
+                                                Итог сохранён: {selectedFinalGrade}/{gradeLimit}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                            <p className="text-sm text-slate-500">Оценка преподавателя</p>
+                                            <p className="mt-2 text-2xl font-semibold text-white">{formatGradeValue(selectedSourceValues.teacher, gradeLimit)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                            <p className="text-sm text-slate-500">AI</p>
+                                            <p className="mt-2 text-2xl font-semibold text-white">{formatGradeValue(selectedSourceValues.ai, gradeLimit)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                            <p className="text-sm text-slate-500">Взаимопроверка</p>
+                                            <p className="mt-2 text-2xl font-semibold text-white">{formatGradeValue(selectedSourceValues.peer, gradeLimit)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                            <p className="text-sm text-slate-500">Среднее</p>
+                                            <p className="mt-2 text-2xl font-semibold text-white">{formatGradeValue(selectedAverageGrade, gradeLimit)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 rounded-2xl border border-purple-500/20 bg-purple-500/[0.07] p-4">
+                                        <label className="mb-2 block text-sm font-medium text-purple-100" htmlFor={`final-grade-${selectedGroup.userId}`}>
+                                            Итоговая оценка
+                                        </label>
+                                        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),auto]">
+                                            <input
+                                                id={`final-grade-${selectedGroup.userId}`}
+                                                type="number"
+                                                min="0"
+                                                max={gradeLimit}
+                                                value={finalGradeInputs[selectedGroup.userId] ?? ''}
+                                                onChange={(event) => {
+                                                    setFinalGradeInput(selectedGroup.userId, event.target.value);
+                                                }}
+                                                placeholder={`0-${gradeLimit}`}
+                                                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSaveFinalGrade(selectedGroup)}
+                                                disabled={savingFinalGradeFor === selectedGroup.userId}
+                                                className="rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                                            >
+                                                {savingFinalGradeFor === selectedGroup.userId ? 'Сохраняем...' : 'Сохранить итог'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleUseAverageFinalGrade(selectedGroup)}
+                                            disabled={selectedAverageGrade === null}
+                                            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            Подставить среднее: {formatGradeValue(selectedAverageGrade, gradeLimit)}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleUseTeacherFinalGrade(selectedGroup)}
+                                            disabled={selectedSourceValues.teacher === null}
+                                            className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            Взять оценку преподавателя
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleUseAiFinalGrade(selectedGroup)}
+                                            disabled={selectedSourceValues.ai === null}
+                                            className="rounded-xl border border-purple-500/20 bg-purple-500/10 px-3 py-2 text-xs font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            Взять AI
+                                        </button>
                                     </div>
                                 </section>
 
@@ -1200,11 +1562,48 @@ const TaskSubmissionsPage = () => {
                                         </span>
                                     </div>
 
-                                    <FileTileGrid
-                                        files={selectedGroup.submissions}
-                                        emptyMessage="Студент еще не прикреплял файлы."
-                                        onDownload={handleDownload}
-                                    />
+                                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr),300px]">
+                                        <FileTileGrid
+                                            files={selectedGroup.submissions}
+                                            emptyMessage="Студент еще не прикреплял файлы."
+                                            onDownload={handleDownload}
+                                        />
+
+                                        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] p-4">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-sm font-medium text-purple-100">Оценка преподавателя</p>
+                                                {selectedStudentGrade && (
+                                                    <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-200">
+                                                        {selectedStudentGrade.grade}/{gradeLimit}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="mt-2 text-xs leading-5 text-slate-500">
+                                                Это ваша отдельная оценка за работу. Итог сверху можно оставить другим.
+                                            </p>
+
+                                            <div className="mt-4 space-y-3">
+                                                <input
+                                                    id={`grade-${selectedGroup.userId}`}
+                                                    type="number"
+                                                    min="0"
+                                                    max={gradeLimit}
+                                                    value={gradeInputs[selectedGroup.userId] ?? ''}
+                                                    onChange={(event) => setGradeInput(selectedGroup.userId, event.target.value)}
+                                                    placeholder={`0-${gradeLimit}`}
+                                                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSaveGrade(selectedGroup)}
+                                                    disabled={savingGradeFor === selectedGroup.userId}
+                                                    className="w-full rounded-xl bg-purple-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                                                >
+                                                    {savingGradeFor === selectedGroup.userId ? 'Сохраняем...' : 'Сохранить оценку'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </section>
 
                                 <section className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
@@ -1266,7 +1665,7 @@ const TaskSubmissionsPage = () => {
 
                                             {selectedAiReview?.error_message && (
                                                 <p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                                                    {selectedAiReview.error_message}
+                                                    {formatAiRuntimeMessage(selectedAiReview.error_message)}
                                                 </p>
                                             )}
                                         </div>
@@ -1278,7 +1677,7 @@ const TaskSubmissionsPage = () => {
                                             </p>
                                             <button
                                                 type="button"
-                                                onClick={() => handleUseAiGrade(selectedGroup)}
+                                                onClick={() => handleUseAiFinalGrade(selectedGroup)}
                                                 disabled={getAiReviewScore(selectedAiReview) === null}
                                                 className="mt-4 w-full rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                             >

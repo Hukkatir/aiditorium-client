@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { HiAcademicCap, HiMiniRectangleStack } from 'react-icons/hi2';
+import { HiAcademicCap, HiClipboardDocumentCheck, HiMiniRectangleStack } from 'react-icons/hi2';
 import { useAuth } from '../../context/AuthContext';
 import { courseService } from '../../services/courseService';
 import { buildCoursePath } from '../../utils/routeUtils';
@@ -95,6 +95,17 @@ const Sidebar = ({ isOpen }) => {
                             >
                                 <HiMiniRectangleStack className="h-4 w-4" />
                                 Мои задания
+                            </Link>
+                            <Link
+                                to="/peer-review"
+                                className={`mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                                    location.pathname === '/peer-review'
+                                        ? 'bg-purple-600/20 text-purple-300'
+                                        : 'text-gray-300 hover:bg-white/5'
+                                }`}
+                            >
+                                <HiClipboardDocumentCheck className="h-4 w-4" />
+                                Взаимопроверка
                             </Link>
                         </div>
                     </div>
