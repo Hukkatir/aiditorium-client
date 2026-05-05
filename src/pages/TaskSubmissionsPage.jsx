@@ -35,8 +35,9 @@ import { extractCollection } from '../utils/apiUtils';
 import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import {
+    buildTaskAiReviewSettingsPath,
     buildTaskPath,
-    buildTaskReviewSettingsPath,
+    buildTaskPeerReviewSettingsPath,
     buildTaskSubmissionsPath
 } from '../utils/routeUtils';
 import {
@@ -131,6 +132,11 @@ const getAiReviewStatus = (review) => {
     return AI_REVIEW_STATUS_META[status] || { label: review ? status || 'Неизвестно' : 'Не запускалась', className: 'bg-white/10 text-slate-300' };
 };
 
+const isAiReviewActive = (review) => {
+    const status = String(review?.status?.value || review?.status || '').toLowerCase();
+    return ['queued', 'extracting', 'analyzing'].includes(status);
+};
+
 const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -176,6 +182,7 @@ const TaskSubmissionsPage = () => {
     const [savingFinalGradeFor, setSavingFinalGradeFor] = useState(null);
     const [queueingAiReviewFor, setQueueingAiReviewFor] = useState(null);
     const [queueingAllAiReviews, setQueueingAllAiReviews] = useState(false);
+    const [pollingAiReviews, setPollingAiReviews] = useState(false);
     const [selectedStudentId, setSelectedStudentId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [studentFilter, setStudentFilter] = useState('all');
@@ -194,8 +201,11 @@ const TaskSubmissionsPage = () => {
     const taskPath = task && course && discipline
         ? buildTaskPath(course, discipline, task)
         : '/courses';
-    const reviewSettingsPath = task && course && discipline
-        ? buildTaskReviewSettingsPath(course, discipline, task)
+    const aiSettingsPath = task && course && discipline
+        ? buildTaskAiReviewSettingsPath(course, discipline, task)
+        : '/courses';
+    const peerSettingsPath = task && course && discipline
+        ? buildTaskPeerReviewSettingsPath(course, discipline, task)
         : '/courses';
 
     const isTeacher = currentRole === 'teacher';
@@ -545,19 +555,34 @@ const TaskSubmissionsPage = () => {
         }
     }, [showToast, task?.id]);
 
-    const reloadAiReviews = useCallback(async () => {
+    const pollAiReviewsUntilSettled = useCallback(async (maxAttempts = 20) => {
         if (!task?.id) {
             return;
         }
 
+        setPollingAiReviews(true);
+
         try {
-            const reviewsData = await aiReviewService.getTaskAiReviews(task.id, 100);
-            setAiReviews(extractCollection(reviewsData, 'reviews'));
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                const reviewsData = await aiReviewService.getTaskAiReviews(task.id, 100);
+                const nextReviews = extractCollection(reviewsData, 'reviews');
+                setAiReviews(nextReviews);
+
+                if (!nextReviews.some(isAiReviewActive)) {
+                    break;
+                }
+
+                await new Promise((resolve) => {
+                    window.setTimeout(resolve, 3000);
+                });
+            }
         } catch (error) {
             if (!isReviewPermissionError(error)) {
                 console.error(error);
-                showToast('error', getApiMessage(error) || 'Не удалось обновить AI-проверки');
+                showToast('error', getApiMessage(error) || 'Не удалось обновить результаты AI-проверки');
             }
+        } finally {
+            setPollingAiReviews(false);
         }
     }, [showToast, task?.id]);
 
@@ -669,7 +694,7 @@ const TaskSubmissionsPage = () => {
         try {
             await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
             showToast('success', forceRecheck ? 'AI-перепроверка запущена' : 'AI-проверка запущена');
-            await reloadAiReviews();
+            await pollAiReviewsUntilSettled();
         } catch (error) {
             console.error(error);
             showToast('error', getFriendlyAiErrorMessage(error) || 'Не удалось запустить AI-проверку. Проверьте настройки критериев.', 6000);
@@ -699,10 +724,9 @@ const TaskSubmissionsPage = () => {
                 }
             }
 
-            await reloadAiReviews();
-
             if (successCount > 0) {
                 showToast('success', `AI-проверка запущена для работ: ${successCount}`);
+                await pollAiReviewsUntilSettled();
             }
 
             if (failedMessage) {
@@ -715,11 +739,6 @@ const TaskSubmissionsPage = () => {
 
     const handleGeneratePeerAssignments = () => {
         if (!task || !course || !discipline) {
-            return;
-        }
-
-        if (!peerSettings.enabled) {
-            showToast('error', 'Сначала включите взаимопроверку в настройках проверки');
             return;
         }
 
@@ -1012,17 +1031,30 @@ const TaskSubmissionsPage = () => {
                             <p className="mt-2 text-sm font-medium text-white">{groupedSubmissions.length} студентов</p>
                         </div>
                         {canManageReviewers ? (
-                            <button
-                                type="button"
-                                onClick={() => navigate(reviewSettingsPath)}
-                                className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4 text-left transition hover:bg-purple-500/20"
-                            >
-                                <div className="flex items-center gap-2 text-sm text-purple-200">
-                                    <HiCog6Tooth className="h-4 w-4" />
-                                    Настройки
-                                </div>
-                                <p className="mt-2 text-sm font-medium text-white">AI и взаимопроверка</p>
-                            </button>
+                            <div className="grid gap-2 sm:grid-cols-2 xl:col-span-1">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(aiSettingsPath)}
+                                    className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4 text-left transition hover:bg-purple-500/20"
+                                >
+                                    <div className="flex items-center gap-2 text-sm text-purple-200">
+                                        <HiCog6Tooth className="h-4 w-4" />
+                                        AI
+                                    </div>
+                                    <p className="mt-2 text-sm font-medium text-white">Настройки AI-проверки</p>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(peerSettingsPath)}
+                                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.08]"
+                                >
+                                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                                        <HiUserGroup className="h-4 w-4" />
+                                        Студенты
+                                    </div>
+                                    <p className="mt-2 text-sm font-medium text-white">Взаимопроверка</p>
+                                </button>
+                            </div>
                         ) : (
                             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                                 <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -1129,11 +1161,13 @@ const TaskSubmissionsPage = () => {
                                 <button
                                     type="button"
                                     onClick={handleQueueAllAiReviews}
-                                    disabled={queueingAllAiReviews || groupedSubmissions.length === 0}
+                                    disabled={queueingAllAiReviews || pollingAiReviews || groupedSubmissions.length === 0}
                                     className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews ? 'animate-spin' : ''}`} />
-                                    {queueingAllAiReviews ? 'Запускаем...' : 'Проверить все работы'}
+                                    <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews || pollingAiReviews ? 'animate-spin' : ''}`} />
+                                    {queueingAllAiReviews
+                                        ? 'Запускаем...'
+                                        : pollingAiReviews ? 'Ждем результаты...' : 'Проверить все работы'}
                                 </button>
                             </div>
 
@@ -1171,7 +1205,7 @@ const TaskSubmissionsPage = () => {
                                 <button
                                     type="button"
                                     onClick={handleGeneratePeerAssignments}
-                                    disabled={!peerSettings.enabled || groupedSubmissions.length < 2}
+                                    disabled={groupedSubmissions.length < 2}
                                     className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     Сформировать задания
@@ -1180,7 +1214,7 @@ const TaskSubmissionsPage = () => {
 
                             <div className="mt-5 flex flex-wrap gap-2 text-xs">
                                 <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                    {peerSettings.enabled ? 'Включена' : 'Выключена'}
+                                    Активна
                                 </span>
                                 <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                     {peerSettings.mode === 'open' ? 'Открытая' : 'Слепая'}
@@ -1195,7 +1229,7 @@ const TaskSubmissionsPage = () => {
 
                             <button
                                 type="button"
-                                onClick={() => navigate(reviewSettingsPath)}
+                                onClick={() => navigate(peerSettingsPath)}
                                 className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-purple-200 transition hover:text-purple-100"
                             >
                                 <HiCog6Tooth className="h-4 w-4" />
@@ -1219,13 +1253,11 @@ const TaskSubmissionsPage = () => {
                                 </p>
                                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                                     <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                        Взаимопроверка: {peerSettings.enabled ? (peerSettings.mode === 'blind' ? 'слепая' : 'открытая') : 'выключена'}
+                                        Взаимопроверка: {peerSettings.mode === 'blind' ? 'слепая' : 'открытая'}
                                     </span>
-                                    {peerSettings.enabled && (
-                                        <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                            Проверок на студента: {peerSettings.reviewsPerStudent}
-                                        </span>
-                                    )}
+                                    <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                        Проверок на студента: {peerSettings.reviewsPerStudent}
+                                    </span>
                                 </div>
                             </div>
 
@@ -1622,7 +1654,7 @@ const TaskSubmissionsPage = () => {
                                             {canManageReviewers && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => navigate(reviewSettingsPath)}
+                                                    onClick={() => navigate(aiSettingsPath)}
                                                     className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
                                                 >
                                                     Настройки
@@ -1631,13 +1663,13 @@ const TaskSubmissionsPage = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => handleQueueAiReview(selectedGroup, Boolean(selectedAiReview))}
-                                                disabled={queueingAiReviewFor === selectedGroup.userId}
+                                                disabled={queueingAiReviewFor === selectedGroup.userId || pollingAiReviews}
                                                 className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                                             >
-                                                <HiArrowPath className={`h-4 w-4 ${queueingAiReviewFor === selectedGroup.userId ? 'animate-spin' : ''}`} />
+                                                <HiArrowPath className={`h-4 w-4 ${queueingAiReviewFor === selectedGroup.userId || pollingAiReviews ? 'animate-spin' : ''}`} />
                                                 {queueingAiReviewFor === selectedGroup.userId
                                                     ? 'Запускаем...'
-                                                    : selectedAiReview ? 'Перепроверить' : 'Запустить AI'}
+                                                    : pollingAiReviews ? 'Ждем результат...' : selectedAiReview ? 'Перепроверить' : 'Запустить AI'}
                                             </button>
                                         </div>
                                     </div>

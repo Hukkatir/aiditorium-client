@@ -7,6 +7,7 @@ import {
     HiSquares2X2
 } from 'react-icons/hi2';
 import MainLayout from '../components/layout/MainLayout';
+import PeerReviewAssignmentsSection from '../components/peer/PeerReviewAssignmentsSection';
 import TaskCard from '../components/tasks/TaskCard';
 import { useToast } from '../context/ToastContext';
 import { courseService } from '../services/courseService';
@@ -329,6 +330,8 @@ const MyTasksPage = () => {
                         ))}
                     </div>
                 )}
+
+                <PeerReviewAssignmentsSection />
             </div>
         </MainLayout>
     );

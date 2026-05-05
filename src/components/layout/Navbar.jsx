@@ -6,7 +6,6 @@ import {
     HiPlus,
     HiUserPlus,
     HiArrowRightOnRectangle,
-    HiClipboardDocumentCheck,
     HiPencilSquare,
     HiMiniRectangleStack,
     HiBars3,
@@ -135,16 +134,6 @@ const Navbar = ({ sidebarOpen, onToggleSidebar }) => {
                                                 >
                                                     <HiMiniRectangleStack className="w-4 h-4" />
                                                     <span>Мои задания</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setDropdownOpen(false);
-                                                        navigate('/peer-review');
-                                                    }}
-                                                    className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-white/5 rounded-lg transition"
-                                                >
-                                                    <HiClipboardDocumentCheck className="w-4 h-4" />
-                                                    <span>Взаимопроверка</span>
                                                 </button>
                                                 <button
                                                     onClick={() => {

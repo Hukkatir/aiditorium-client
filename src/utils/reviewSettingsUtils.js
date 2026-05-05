@@ -4,31 +4,31 @@ export const DEFAULT_AI_RUBRIC = [
     {
         id: 'requirements',
         label: 'Соответствие заданию',
-        description: 'Работа решает поставленную задачу и учитывает требования из описания.',
-        instructions: 'Проверь полноту решения, соответствие теме и отсутствие явных пропусков.',
+        description: 'Проверь, насколько работа решает поставленную задачу и учитывает требования из описания.',
+        instructions: '',
         weight: 40,
-        checks: ['Решение соответствует теме задания', 'Выполнены основные требования', 'Нет критичных пропусков']
+        checks: []
     },
     {
         id: 'quality',
         label: 'Качество выполнения',
-        description: 'Работа аккуратная, понятная и достаточно обоснованная.',
-        instructions: 'Оцени структуру, аргументацию, оформление и качество реализации.',
+        description: 'Оцени структуру, аккуратность, аргументацию и качество реализации.',
+        instructions: '',
         weight: 40,
-        checks: ['Работа логично структурирована', 'Результат можно проверить', 'Оформление не мешает пониманию']
+        checks: []
     },
     {
         id: 'independence',
         label: 'Самостоятельность и выводы',
-        description: 'В работе видны собственные выводы студента и осмысленное выполнение.',
-        instructions: 'Проверь, есть ли объяснения решений, выводы или комментарии к результату.',
+        description: 'Проверь, есть ли в работе собственные выводы, объяснения и осмысленное выполнение.',
+        instructions: '',
         weight: 20,
-        checks: ['Есть пояснения или выводы', 'Решение выглядит осмысленным', 'Нет признаков случайной сдачи']
+        checks: []
     }
 ];
 
 export const DEFAULT_PEER_REVIEW_SETTINGS = {
-    enabled: false,
+    enabled: true,
     mode: 'blind',
     reviewsPerStudent: 2,
     allowScore: true,
@@ -42,6 +42,7 @@ export const getPeerReviewSettingsKey = (taskId) => `${PEER_REVIEW_SETTINGS_PREF
 export const normalizePeerReviewSettings = (settings = {}) => ({
     ...DEFAULT_PEER_REVIEW_SETTINGS,
     ...settings,
+    enabled: true,
     mode: settings.mode === 'open' ? 'open' : 'blind',
     reviewsPerStudent: Number.isFinite(Number(settings.reviewsPerStudent))
         ? Math.max(1, Number(settings.reviewsPerStudent))

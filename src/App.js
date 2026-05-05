@@ -8,8 +8,8 @@ import CourseDetailPage from './pages/CourseDetailPage';
 import DisciplineDetailPage from './pages/DisciplineDetailPage';
 import FilePreviewPage from './pages/FilePreviewPage';
 import MyTasksPage from './pages/MyTasksPage';
-import PeerReviewPage from './pages/PeerReviewPage';
 import TaskDetailPage from './pages/TaskDetailPage';
+import TaskPeerReviewSettingsPage from './pages/TaskPeerReviewSettingsPage';
 import TaskReviewSettingsPage from './pages/TaskReviewSettingsPage';
 import TaskSubmissionsPage from './pages/TaskSubmissionsPage';
 // Защищённый маршрут (без Layout – Layout уже внутри страниц)
@@ -65,7 +65,7 @@ function App() {
                 } />
                 <Route path="/peer-review" element={
                     <ProtectedRoute>
-                        <PeerReviewPage />
+                        <Navigate to="/my-tasks" replace />
                     </ProtectedRoute>
                 } />
                 <Route path="/file/:fileId/preview" element={
@@ -96,6 +96,16 @@ function App() {
                 <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber/review-settings" element={
                     <ProtectedRoute>
                         <TaskReviewSettingsPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber/ai-review-settings" element={
+                    <ProtectedRoute>
+                        <TaskReviewSettingsPage />
+                    </ProtectedRoute>
+                } />
+                <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber/peer-review-settings" element={
+                    <ProtectedRoute>
+                        <TaskPeerReviewSettingsPage />
                     </ProtectedRoute>
                 } />
                 <Route path="/course/:courseIdOrSlug/discipline/:disciplineIdOrSlug/task/:taskNumber" element={
