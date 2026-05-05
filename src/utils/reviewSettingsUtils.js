@@ -1,4 +1,4 @@
-export const DEFAULT_AI_SUPPORTED_FORMATS = ['docx', 'xlsx', 'csv', 'tsv', 'zip', 'php', 'js', 'ts', 'py', 'java', 'cs'];
+export const DEFAULT_AI_SUPPORTED_FORMATS = ['docx', 'xlsx', 'csv', 'tsv', 'zip', 'rar', '7z', 'php', 'js', 'ts', 'py', 'java', 'cs'];
 
 export const DEFAULT_AI_RUBRIC = [
     {
