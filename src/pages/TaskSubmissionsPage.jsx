@@ -96,6 +96,10 @@ const getFriendlyAiErrorMessage = (error) => {
         return 'AI не смог прочитать DOCX: на backend-сервере не включено PHP-расширение zip (ZipArchive). После установки php-zip проверка DOCX заработает.';
     }
 
+    if (/cURL error 28|timed out|timeout|OpenRouter connection failed/i.test(message)) {
+        return 'OpenRouter не успел ответить вовремя. Backend повторяет такие запросы автоматически; если ошибка повторяется после всех попыток, увеличьте AI_TIMEOUT/AI_OPENROUTER_RETRY_ATTEMPTS или проверьте загруженность модели.';
+    }
+
     if (/Elephant Alpha|Ling-2\.6|ling-2\.6|OpenRouter request failed/i.test(message)) {
         return 'OpenRouter не принял выбранную AI-модель. В backend .env нужно заменить AI_MODEL на актуальный id модели, например inclusionai/ling-2.6-flash:free, и очистить кеш конфига.';
     }
@@ -555,7 +559,7 @@ const TaskSubmissionsPage = () => {
         }
     }, [showToast, task?.id]);
 
-    const pollAiReviewsUntilSettled = useCallback(async (maxAttempts = 20) => {
+    const pollAiReviewsUntilSettled = useCallback(async (maxAttempts = 240) => {
         if (!task?.id) {
             return;
         }
@@ -1008,7 +1012,7 @@ const TaskSubmissionsPage = () => {
                         </div>
                     </div>
 
-                    <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                             <div className="flex items-center gap-2 text-sm text-slate-500">
                                 <HiCalendar className="h-4 w-4" />
@@ -1030,40 +1034,6 @@ const TaskSubmissionsPage = () => {
                             </div>
                             <p className="mt-2 text-sm font-medium text-white">{groupedSubmissions.length} студентов</p>
                         </div>
-                        {canManageReviewers ? (
-                            <div className="grid gap-2 sm:grid-cols-2 xl:col-span-1">
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(aiSettingsPath)}
-                                    className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4 text-left transition hover:bg-purple-500/20"
-                                >
-                                    <div className="flex items-center gap-2 text-sm text-purple-200">
-                                        <HiCog6Tooth className="h-4 w-4" />
-                                        AI
-                                    </div>
-                                    <p className="mt-2 text-sm font-medium text-white">Настройки AI-проверки</p>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate(peerSettingsPath)}
-                                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/[0.08]"
-                                >
-                                    <div className="flex items-center gap-2 text-sm text-slate-400">
-                                        <HiUserGroup className="h-4 w-4" />
-                                        Студенты
-                                    </div>
-                                    <p className="mt-2 text-sm font-medium text-white">Взаимопроверка</p>
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                                <div className="flex items-center gap-2 text-sm text-slate-500">
-                                    <HiShieldCheck className="h-4 w-4" />
-                                    Доступ
-                                </div>
-                                <p className="mt-2 text-sm font-medium text-white">Просмотр проверки</p>
-                            </div>
-                        )}
                     </div>
                 </section>
 
@@ -1158,17 +1128,29 @@ const TaskSubmissionsPage = () => {
                                         Запускайте проверку выбранной работы или сразу всех сданных файлов.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleQueueAllAiReviews}
-                                    disabled={queueingAllAiReviews || pollingAiReviews || groupedSubmissions.length === 0}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews || pollingAiReviews ? 'animate-spin' : ''}`} />
-                                    {queueingAllAiReviews
-                                        ? 'Запускаем...'
-                                        : pollingAiReviews ? 'Ждем результаты...' : 'Проверить все работы'}
-                                </button>
+                                <div className="flex flex-wrap gap-2">
+                                    {canManageReviewers && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(aiSettingsPath)}
+                                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                        >
+                                            <HiCog6Tooth className="h-4 w-4" />
+                                            Настройки AI
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={handleQueueAllAiReviews}
+                                        disabled={queueingAllAiReviews || pollingAiReviews || groupedSubmissions.length === 0}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews || pollingAiReviews ? 'animate-spin' : ''}`} />
+                                        {queueingAllAiReviews
+                                            ? 'Запускаем...'
+                                            : pollingAiReviews ? 'Ждем результаты...' : 'Проверить все работы'}
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="mt-5 grid grid-cols-3 gap-2 text-xs">
@@ -1202,14 +1184,24 @@ const TaskSubmissionsPage = () => {
                                         Создайте задания для студентов после настройки режима проверки.
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleGeneratePeerAssignments}
-                                    disabled={groupedSubmissions.length < 2}
-                                    className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    Сформировать задания
-                                </button>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(peerSettingsPath)}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                    >
+                                        <HiCog6Tooth className="h-4 w-4" />
+                                        Настройки
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleGeneratePeerAssignments}
+                                        disabled={groupedSubmissions.length < 2}
+                                        className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        Сформировать задания
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="mt-5 flex flex-wrap gap-2 text-xs">
@@ -1227,14 +1219,6 @@ const TaskSubmissionsPage = () => {
                                 </span>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() => navigate(peerSettingsPath)}
-                                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-purple-200 transition hover:text-purple-100"
-                            >
-                                <HiCog6Tooth className="h-4 w-4" />
-                                Открыть настройки взаимопроверки
-                            </button>
                         </div>
                     </section>
                 )}

@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     HiArrowLeft,
     HiCheck,
-    HiSparkles,
     HiUserGroup
 } from 'react-icons/hi2';
 import MainLayout from '../components/layout/MainLayout';
