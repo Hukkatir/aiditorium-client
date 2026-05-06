@@ -7,6 +7,7 @@ import {
     HiBolt,
     HiCalendar,
     HiCheck,
+    HiCog6Tooth,
     HiCpuChip,
     HiDocumentArrowDown,
     HiExclamationTriangle,
@@ -34,7 +35,9 @@ import { extractCollection } from '../utils/apiUtils';
 import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import {
+    buildTaskAiReviewSettingsPath,
     buildTaskPath,
+    buildTaskPeerReviewSettingsPath,
     buildTaskSubmissionsPath
 } from '../utils/routeUtils';
 import {
@@ -201,6 +204,12 @@ const TaskSubmissionsPage = () => {
 
     const taskPath = task && course && discipline
         ? buildTaskPath(course, discipline, task)
+        : '/courses';
+    const aiSettingsPath = task && course && discipline
+        ? buildTaskAiReviewSettingsPath(course, discipline, task)
+        : '/courses';
+    const peerSettingsPath = task && course && discipline
+        ? buildTaskPeerReviewSettingsPath(course, discipline, task)
         : '/courses';
     const isTeacher = currentRole === 'teacher';
     const gradeLimit = useMemo(() => {
@@ -1119,6 +1128,16 @@ const TaskSubmissionsPage = () => {
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
+                                    {canManageReviewers && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(aiSettingsPath)}
+                                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                        >
+                                            <HiCog6Tooth className="h-4 w-4" />
+                                            Настройки
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={handleQueueAllAiReviews}
@@ -1162,6 +1181,16 @@ const TaskSubmissionsPage = () => {
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
+                                    {canManageReviewers && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(peerSettingsPath)}
+                                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                        >
+                                            <HiCog6Tooth className="h-4 w-4" />
+                                            Настройки
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={handleGeneratePeerAssignments}
