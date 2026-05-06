@@ -119,7 +119,7 @@ const TaskReviewSettingsPage = () => {
             setProfileForm(normalizeProfile(profileData.profile, taskMaxScore));
         } catch (error) {
             console.error(error);
-            showToast('error', getApiMessage(error) || 'Не удалось загрузить настройки AI-проверки');
+            showToast('error', getApiMessage(error) || 'Не удалось загрузить настройки проверки искусственным интеллектом');
         } finally {
             setLoading(false);
         }
@@ -200,7 +200,7 @@ const TaskReviewSettingsPage = () => {
         const nextErrors = validateProfile();
         if (Object.keys(nextErrors).length > 0) {
             setErrors(nextErrors);
-            showToast('error', 'Проверьте поля настройки AI-проверки');
+            showToast('error', 'Проверьте поля настройки проверки искусственным интеллектом');
             return;
         }
 
@@ -224,10 +224,10 @@ const TaskReviewSettingsPage = () => {
 
             await aiReviewService.updateReviewProfile(task.id, payload);
             setProfileForm(normalizeProfile(payload, maxScore));
-            showToast('success', 'Настройки AI-проверки сохранены');
+            showToast('success', 'Настройки проверки искусственным интеллектом сохранены');
         } catch (error) {
             console.error(error);
-            showToast('error', getApiMessage(error) || 'Не удалось сохранить настройки AI-проверки');
+            showToast('error', getApiMessage(error) || 'Не удалось сохранить настройки проверки искусственным интеллектом');
         } finally {
             setSavingProfile(false);
         }
@@ -247,7 +247,7 @@ const TaskReviewSettingsPage = () => {
         return (
             <MainLayout>
                 <div className="py-20 text-center">
-                    <p className="text-xl text-gray-400">Настройки AI-проверки недоступны</p>
+                    <p className="text-xl text-gray-400">Настройки проверки искусственным интеллектом недоступны</p>
                     <button
                         type="button"
                         onClick={() => navigate('/courses')}
@@ -297,11 +297,11 @@ const TaskReviewSettingsPage = () => {
                         <div className="max-w-3xl">
                             <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/20 bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-200">
                                 <HiSparkles className="h-4 w-4" />
-                                AI-проверка включена
+                                Проверка искусственным интеллектом включена
                             </div>
                             <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">{task.name}</h1>
                             <p className="mt-3 text-sm leading-6 text-slate-400">
-                                Настройте критерии, по которым AI будет проверять работы студентов. Для каждого критерия задается название, инструкция и количество баллов.
+                                Настройте критерии, по которым искусственный интеллект будет проверять работы студентов. Для каждого критерия задается название, инструкция и количество баллов.
                             </p>
                         </div>
 
@@ -318,7 +318,7 @@ const TaskReviewSettingsPage = () => {
 
                 {accessDenied ? (
                     <section className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-sm leading-6 text-amber-100">
-                        Настройки AI-проверки может менять только автор задания или пользователь с правом управления проверкой.
+                        Настройки проверки искусственным интеллектом может менять только автор задания или пользователь с правом управления проверкой.
                     </section>
                 ) : (
                     <section className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
@@ -326,7 +326,7 @@ const TaskReviewSettingsPage = () => {
                             <div>
                                 <div className="flex items-center gap-2">
                                     <HiSparkles className="h-5 w-5 text-purple-300" />
-                                    <h2 className="text-xl font-semibold text-white">Критерии AI-проверки</h2>
+                                    <h2 className="text-xl font-semibold text-white">Критерии проверки искусственным интеллектом</h2>
                                 </div>
                                 <p className="mt-2 text-sm text-slate-500">
                                     Суммарные баллы всех критериев должны совпадать с максимумом задания.
@@ -424,7 +424,7 @@ const TaskReviewSettingsPage = () => {
                                 className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                             >
                                 {savingProfile && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}
-                                {savingProfile ? 'Сохраняем...' : 'Сохранить AI-настройки'}
+                                {savingProfile ? 'Сохраняем...' : 'Сохранить настройки'}
                             </button>
                         </div>
                     </section>

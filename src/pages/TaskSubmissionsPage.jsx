@@ -7,7 +7,6 @@ import {
     HiBolt,
     HiCalendar,
     HiCheck,
-    HiCog6Tooth,
     HiCpuChip,
     HiDocumentArrowDown,
     HiExclamationTriangle,
@@ -35,9 +34,7 @@ import { extractCollection } from '../utils/apiUtils';
 import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import {
-    buildTaskAiReviewSettingsPath,
     buildTaskPath,
-    buildTaskPeerReviewSettingsPath,
     buildTaskSubmissionsPath
 } from '../utils/routeUtils';
 import {
@@ -93,7 +90,7 @@ const getFriendlyAiErrorMessage = (error) => {
     const message = getApiMessage(error);
 
     if (/ZipArchive/i.test(message)) {
-        return 'AI не смог прочитать DOCX: на backend-сервере не включено PHP-расширение zip (ZipArchive). После установки php-zip проверка DOCX заработает.';
+        return 'Не удалось прочитать DOCX-файл для проверки. Попробуйте загрузить работу в другом формате или повторите проверку позже.';
     }
 
     if (/cURL error 28|timed out|timeout|OpenRouter connection failed/i.test(message)) {
@@ -205,13 +202,6 @@ const TaskSubmissionsPage = () => {
     const taskPath = task && course && discipline
         ? buildTaskPath(course, discipline, task)
         : '/courses';
-    const aiSettingsPath = task && course && discipline
-        ? buildTaskAiReviewSettingsPath(course, discipline, task)
-        : '/courses';
-    const peerSettingsPath = task && course && discipline
-        ? buildTaskPeerReviewSettingsPath(course, discipline, task)
-        : '/courses';
-
     const isTeacher = currentRole === 'teacher';
     const gradeLimit = useMemo(() => {
         const parsedScores = Number(task?.scores);
@@ -697,7 +687,7 @@ const TaskSubmissionsPage = () => {
 
         try {
             await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
-            showToast('success', forceRecheck ? 'AI-перепроверка запущена' : 'AI-проверка запущена');
+            showToast('success', forceRecheck ? 'Повторная проверка искусственным интеллектом запущена' : 'Проверка искусственным интеллектом запущена');
             await pollAiReviewsUntilSettled();
         } catch (error) {
             console.error(error);
@@ -729,7 +719,7 @@ const TaskSubmissionsPage = () => {
             }
 
             if (successCount > 0) {
-                showToast('success', `AI-проверка запущена для работ: ${successCount}`);
+                showToast('success', `Проверка искусственным интеллектом запущена для работ: ${successCount}`);
                 await pollAiReviewsUntilSettled();
             }
 
@@ -1122,23 +1112,13 @@ const TaskSubmissionsPage = () => {
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <HiBolt className="h-5 w-5 text-purple-300" />
-                                        <h2 className="text-xl font-semibold text-white">AI-проверка</h2>
+                                        <h2 className="text-xl font-semibold text-white">Проверка искусственным интеллектом</h2>
                                     </div>
                                     <p className="mt-2 text-sm leading-6 text-slate-500">
                                         Запускайте проверку выбранной работы или сразу всех сданных файлов.
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    {canManageReviewers && (
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate(aiSettingsPath)}
-                                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
-                                        >
-                                            <HiCog6Tooth className="h-4 w-4" />
-                                            Настройки AI
-                                        </button>
-                                    )}
                                     <button
                                         type="button"
                                         onClick={handleQueueAllAiReviews}
@@ -1168,9 +1148,6 @@ const TaskSubmissionsPage = () => {
                                 </div>
                             </div>
 
-                            <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100/80">
-                                Если для DOCX появляется “ZipArchive not found”, нужно включить расширение php-zip на backend-сервере.
-                            </p>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
@@ -1185,14 +1162,6 @@ const TaskSubmissionsPage = () => {
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate(peerSettingsPath)}
-                                        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
-                                    >
-                                        <HiCog6Tooth className="h-4 w-4" />
-                                        Настройки
-                                    </button>
                                     <button
                                         type="button"
                                         onClick={handleGeneratePeerAssignments}
@@ -1578,12 +1547,15 @@ const TaskSubmissionsPage = () => {
                                         </span>
                                     </div>
 
-                                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr),300px]">
-                                        <FileTileGrid
-                                            files={selectedGroup.submissions}
-                                            emptyMessage="Студент еще не прикреплял файлы."
-                                            onDownload={handleDownload}
-                                        />
+                                    <div className="grid gap-4 xl:grid-cols-[minmax(260px,520px),300px] xl:items-start">
+                                        <div className="min-w-0">
+                                            <FileTileGrid
+                                                files={selectedGroup.submissions}
+                                                emptyMessage="Студент еще не прикреплял файлы."
+                                                onDownload={handleDownload}
+                                                compact
+                                            />
+                                        </div>
 
                                         <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.06] p-4">
                                             <div className="flex items-center justify-between gap-3">
@@ -1627,7 +1599,7 @@ const TaskSubmissionsPage = () => {
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <HiCpuChip className="h-5 w-5 text-purple-300" />
-                                                <h2 className="text-xl font-semibold text-white">AI-проверка</h2>
+                                                <h2 className="text-xl font-semibold text-white">Проверка искусственным интеллектом</h2>
                                             </div>
                                             <p className="mt-2 text-sm text-slate-500">
                                                 Проверяется последняя версия работы. Критерии задаются в настройках проверки.
@@ -1635,15 +1607,6 @@ const TaskSubmissionsPage = () => {
                                         </div>
 
                                         <div className="flex flex-wrap gap-2">
-                                            {canManageReviewers && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => navigate(aiSettingsPath)}
-                                                    className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
-                                                >
-                                                    Настройки
-                                                </button>
-                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => handleQueueAiReview(selectedGroup, Boolean(selectedAiReview))}
@@ -1653,7 +1616,7 @@ const TaskSubmissionsPage = () => {
                                                 <HiArrowPath className={`h-4 w-4 ${queueingAiReviewFor === selectedGroup.userId || pollingAiReviews ? 'animate-spin' : ''}`} />
                                                 {queueingAiReviewFor === selectedGroup.userId
                                                     ? 'Запускаем...'
-                                                    : pollingAiReviews ? 'Ждем результат...' : selectedAiReview ? 'Перепроверить' : 'Запустить AI'}
+                                                    : pollingAiReviews ? 'Ждем результат...' : selectedAiReview ? 'Перепроверить' : 'Запустить проверку'}
                                             </button>
                                         </div>
                                     </div>
@@ -1675,7 +1638,7 @@ const TaskSubmissionsPage = () => {
                                                 <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-300">{selectedAiReview.summary}</p>
                                             ) : (
                                                 <p className="mt-4 text-sm leading-6 text-slate-500">
-                                                    AI еще не запускался для этой сдачи или результат пока не готов.
+                                                    Проверка еще не запускалась для этой сдачи или результат пока не готов.
                                                 </p>
                                             )}
 
@@ -1687,7 +1650,7 @@ const TaskSubmissionsPage = () => {
                                         </div>
 
                                         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                            <p className="text-sm text-slate-500">Рекомендация AI</p>
+                                            <p className="text-sm text-slate-500">Рекомендация ИИ</p>
                                             <p className="mt-2 text-2xl font-semibold text-white">
                                                 {formatGradeValue(getAiReviewScore(selectedAiReview), gradeLimit)}
                                             </p>
