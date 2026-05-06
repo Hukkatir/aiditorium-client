@@ -100,8 +100,12 @@ const getFriendlyAiErrorMessage = (error) => {
         return 'OpenRouter не успел ответить вовремя. Backend повторяет такие запросы автоматически; если ошибка повторяется после всех попыток, увеличьте AI_TIMEOUT/AI_OPENROUTER_RETRY_ATTEMPTS или проверьте загруженность модели.';
     }
 
-    if (/Elephant Alpha|Ling-2\.6|ling-2\.6|OpenRouter request failed/i.test(message)) {
-        return 'OpenRouter не принял выбранную AI-модель. В backend .env нужно заменить AI_MODEL на актуальный id модели, например inclusionai/ling-2.6-flash:free, и очистить кеш конфига.';
+    if (/Elephant Alpha|Ling-2\.6|ling-2\.6|model.*(not found|unavailable|invalid)|no endpoints found|not a valid model|model .* does not exist|unsupported model/i.test(message)) {
+        return 'Выбранная модель искусственного интеллекта сейчас недоступна в OpenRouter. Проверьте AI_MODEL в backend .env и очистите кеш конфигурации Laravel.';
+    }
+
+    if (/OpenRouter request failed/i.test(message)) {
+        return `OpenRouter вернул ошибку: ${message.replace(/^OpenRouter request failed:\s*/i, '')}`;
     }
 
     return message;
@@ -1636,6 +1640,16 @@ const TaskSubmissionsPage = () => {
                                         </div>
 
                                         <div className="flex flex-wrap gap-2">
+                                            {canManageReviewers && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigate(aiSettingsPath)}
+                                                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                                >
+                                                    <HiCog6Tooth className="h-4 w-4" />
+                                                    Настройки
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => handleQueueAiReview(selectedGroup, Boolean(selectedAiReview))}
