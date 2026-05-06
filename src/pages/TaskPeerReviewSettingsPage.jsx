@@ -9,10 +9,12 @@ import MainLayout from '../components/layout/MainLayout';
 import { useToast } from '../context/ToastContext';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
+import { peerReviewService } from '../services/peerReviewService';
 import { taskService } from '../services/taskService';
 import {
     DEFAULT_PEER_REVIEW_SETTINGS,
     loadPeerReviewSettings,
+    normalizePeerReviewSettings,
     savePeerReviewSettings
 } from '../utils/reviewSettingsUtils';
 import { buildTaskAiReviewSettingsPath, buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
@@ -56,7 +58,17 @@ const TaskPeerReviewSettingsPage = () => {
             setTask(taskObject);
             setCourse(courseData.course || courseData);
             setDiscipline(disciplineData.discipline || disciplineData);
-            setPeerForm(loadPeerReviewSettings(taskObject.id));
+
+            try {
+                const settingsData = await peerReviewService.getTaskSettings(taskObject.id);
+                setPeerForm(normalizePeerReviewSettings(settingsData.settings || settingsData));
+            } catch (settingsError) {
+                if (![404, 405].includes(settingsError.response?.status)) {
+                    throw settingsError;
+                }
+
+                setPeerForm(loadPeerReviewSettings(taskObject.id));
+            }
         } catch (error) {
             console.error(error);
             showToast('error', getApiMessage(error) || 'Не удалось загрузить настройки взаимопроверки');
@@ -69,20 +81,35 @@ const TaskPeerReviewSettingsPage = () => {
         fetchData();
     }, [fetchData]);
 
-    const handleSavePeerSettings = () => {
+    const handleSavePeerSettings = async () => {
         if (!task) {
             return;
         }
 
-        setSavingPeer(true);
-        savePeerReviewSettings(task.id, {
+        const nextSettings = normalizePeerReviewSettings({
             ...peerForm,
             enabled: true
         });
-        window.setTimeout(() => {
+
+        setSavingPeer(true);
+        savePeerReviewSettings(task.id, nextSettings);
+
+        try {
+            const settingsData = await peerReviewService.updateTaskSettings(task.id, nextSettings);
+            setPeerForm(normalizePeerReviewSettings(settingsData.settings || nextSettings));
             setSavingPeer(false);
             showToast('success', 'Настройки взаимопроверки сохранены');
-        }, 200);
+        } catch (error) {
+            if ([404, 405].includes(error.response?.status)) {
+                setSavingPeer(false);
+                showToast('success', 'Настройки взаимопроверки сохранены');
+                return;
+            }
+
+            console.error(error);
+            setSavingPeer(false);
+            showToast('error', getApiMessage(error) || 'Не удалось сохранить настройки взаимопроверки');
+        }
     };
 
     if (loading) {

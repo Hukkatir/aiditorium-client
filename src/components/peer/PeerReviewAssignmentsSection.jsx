@@ -10,6 +10,8 @@ import {
 } from 'react-icons/hi2';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { peerReviewService } from '../../services/peerReviewService';
+import { extractCollection } from '../../utils/apiUtils';
 import { buildFilePreviewPath } from '../../utils/routeUtils';
 import {
     loadAllPeerReviewAssignments,
@@ -25,6 +27,8 @@ const getAssignmentResult = (assignment, results) => (
     results.find((result) => result.assignment_id === assignment.id) || null
 );
 
+const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
+
 const PeerReviewAssignmentsSection = ({ className = '' }) => {
     const { user } = useAuth();
     const { showToast } = useToast();
@@ -35,15 +39,39 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
     const [filter, setFilter] = useState('pending');
     const [searchQuery, setSearchQuery] = useState('');
     const [forms, setForms] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
-    const reloadPeerReviews = useCallback(() => {
-        const nextAssignments = loadAllPeerReviewAssignments()
-            .filter((assignment) => Number(assignment.reviewer_id) === Number(user?.id))
-            .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
-        const nextResults = loadAllPeerReviewResults()
-            .filter((result) => Number(result.reviewer_id) === Number(user?.id));
+    const reloadPeerReviews = useCallback(async () => {
+        if (!user?.id) {
+            setAssignments([]);
+            setResults([]);
+            setSelectedAssignmentId(null);
+            return;
+        }
+
+        setLoading(true);
+
+        let nextAssignments = [];
+        let nextResults = [];
+
+        try {
+            const assignmentsData = await peerReviewService.getMyAssignments();
+            nextAssignments = extractCollection(assignmentsData, 'assignments')
+                .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
+            nextResults = nextAssignments
+                .map((assignment) => assignment.result)
+                .filter(Boolean);
+        } catch (error) {
+            console.error(error);
+            nextAssignments = loadAllPeerReviewAssignments()
+                .filter((assignment) => Number(assignment.reviewer_id) === Number(user.id))
+                .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
+            nextResults = loadAllPeerReviewResults()
+                .filter((result) => Number(result.reviewer_id) === Number(user.id));
+        }
 
         setAssignments(nextAssignments);
         setResults(nextResults);
@@ -64,6 +92,7 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
             });
             return nextForms;
         });
+        setLoading(false);
     }, [user?.id]);
 
     useEffect(() => {
@@ -131,7 +160,7 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
         }));
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!selectedAssignment) {
             return;
         }
@@ -150,6 +179,27 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
             return;
         }
 
+        setSaving(true);
+
+        try {
+            await peerReviewService.saveResult({
+                assignment_id: selectedAssignment.id,
+                grade: selectedAssignment.allow_score ? numericGrade : null,
+                comment: form.comment.trim()
+            });
+            await reloadPeerReviews();
+            setSaving(false);
+            showToast('success', 'Взаимопроверка сохранена');
+            return;
+        } catch (error) {
+            if (![404, 405].includes(error.response?.status)) {
+                console.error(error);
+                showToast('error', getApiMessage(error) || 'Не удалось сохранить взаимопроверку');
+                setSaving(false);
+                return;
+            }
+        }
+
         savePeerReviewResult({
             assignment_id: selectedAssignment.id,
             task_id: selectedAssignment.task_id,
@@ -164,7 +214,8 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
             created_at: selectedResult?.created_at
         });
 
-        reloadPeerReviews();
+        await reloadPeerReviews();
+        setSaving(false);
         showToast('success', 'Взаимопроверка сохранена');
     };
 
@@ -235,7 +286,11 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
                 </div>
             </div>
 
-            {assignments.length === 0 ? (
+            {loading ? (
+                <div className="mt-5 rounded-2xl border border-dashed border-white/10 px-6 py-12 text-center text-sm text-slate-500">
+                    Загружаем задания для взаимопроверки...
+                </div>
+            ) : assignments.length === 0 ? (
                 <div className="mt-5 rounded-2xl border border-dashed border-white/10 px-6 py-12 text-center text-sm text-slate-500">
                     Пока нет работ для взаимопроверки.
                 </div>
@@ -374,9 +429,10 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
                                     <button
                                         type="button"
                                         onClick={handleSave}
-                                        className="rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500"
+                                        disabled={saving}
+                                        className="rounded-xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
                                     >
-                                        Сохранить проверку
+                                        {saving ? 'Сохраняем...' : 'Сохранить проверку'}
                                     </button>
                                 </div>
                             </div>

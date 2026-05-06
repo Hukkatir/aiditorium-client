@@ -30,6 +30,7 @@ import { disciplineService } from '../services/disciplineService';
 import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
 import { aiReviewService } from '../services/aiReviewService';
+import { peerReviewService } from '../services/peerReviewService';
 import { taskService } from '../services/taskService';
 import { extractCollection } from '../utils/apiUtils';
 import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
@@ -50,7 +51,7 @@ import {
     getSourceValues
 } from '../utils/gradeReviewUtils';
 import { loadFinalGrades, saveFinalGrade } from '../utils/finalGradeUtils';
-import { DEFAULT_PEER_REVIEW_SETTINGS, loadPeerReviewSettings } from '../utils/reviewSettingsUtils';
+import { DEFAULT_PEER_REVIEW_SETTINGS, loadPeerReviewSettings, normalizePeerReviewSettings } from '../utils/reviewSettingsUtils';
 import {
     buildPeerAveragesByStudent,
     generatePeerReviewAssignments,
@@ -183,6 +184,7 @@ const TaskSubmissionsPage = () => {
     const [peerSettings, setPeerSettings] = useState(DEFAULT_PEER_REVIEW_SETTINGS);
     const [peerAssignments, setPeerAssignments] = useState([]);
     const [peerResults, setPeerResults] = useState([]);
+    const [generatingPeerAssignments, setGeneratingPeerAssignments] = useState(false);
     const [gradeInputs, setGradeInputs] = useState({});
     const [finalGrades, setFinalGrades] = useState({});
     const [finalGradeInputs, setFinalGradeInputs] = useState({});
@@ -483,7 +485,7 @@ const TaskSubmissionsPage = () => {
                 throw error;
             };
 
-            const [usersData, reviewersData, submissionsData, gradesData, commentsData, aiReviewsData] = await Promise.all([
+            const [usersData, reviewersData, submissionsData, gradesData, commentsData, aiReviewsData, peerSettingsData, peerAssignmentsData, peerResultsData] = await Promise.all([
                 courseService.getCourseUsers(courseObject.id).catch(() => ({ users: [] })),
                 taskService.getTaskReviewers(taskObject.id).catch(() => ({ reviewers: taskObject.reviewers || [] })),
                 taskService.getTaskSubmissions(taskObject.id, 100)
@@ -493,7 +495,13 @@ const TaskSubmissionsPage = () => {
                 commentService.getTaskComments(taskObject.id, 100)
                     .catch((error) => handleReviewScopedError(error, emptyPaginatedResponse)),
                 aiReviewService.getTaskAiReviews(taskObject.id, 100)
-                    .catch((error) => handleReviewScopedError(error, { reviews: emptyPaginatedResponse }))
+                    .catch((error) => handleReviewScopedError(error, { reviews: emptyPaginatedResponse })),
+                peerReviewService.getTaskSettings(taskObject.id)
+                    .catch((error) => handleReviewScopedError(error, { settings: loadPeerReviewSettings(taskObject.id) })),
+                peerReviewService.getTaskAssignments(taskObject.id)
+                    .catch((error) => handleReviewScopedError(error, { assignments: loadPeerReviewAssignments(taskObject.id) })),
+                peerReviewService.getTaskResults(taskObject.id)
+                    .catch((error) => handleReviewScopedError(error, { results: loadPeerReviewResults(taskObject.id) }))
             ]);
 
             const users = usersData.users || usersData.data || [];
@@ -520,9 +528,9 @@ const TaskSubmissionsPage = () => {
             setGrades(extractCollection(gradesData, 'grades'));
             setTaskComments(extractCollection(commentsData));
             setAiReviews(extractCollection(aiReviewsData, 'reviews'));
-            setPeerSettings(loadPeerReviewSettings(taskObject.id));
-            setPeerAssignments(loadPeerReviewAssignments(taskObject.id));
-            setPeerResults(loadPeerReviewResults(taskObject.id));
+            setPeerSettings(normalizePeerReviewSettings(peerSettingsData.settings || peerSettingsData));
+            setPeerAssignments(extractCollection(peerAssignmentsData, 'assignments'));
+            setPeerResults(extractCollection(peerResultsData, 'results'));
             setFinalGrades(loadFinalGrades(taskObject.id));
 
             const canonicalPath = buildTaskSubmissionsPath(courseObject, disciplineObject, taskObject);
@@ -744,7 +752,7 @@ const TaskSubmissionsPage = () => {
         }
     };
 
-    const handleGeneratePeerAssignments = () => {
+    const handleGeneratePeerAssignments = async () => {
         if (!task || !course || !discipline) {
             return;
         }
@@ -762,9 +770,28 @@ const TaskSubmissionsPage = () => {
             return;
         }
 
+        setGeneratingPeerAssignments(true);
         savePeerReviewAssignments(task.id, assignments);
-        setPeerAssignments(assignments);
-        showToast('success', `Задания для взаимопроверки созданы: ${assignments.length}`);
+
+        try {
+            const assignmentsData = await peerReviewService.replaceTaskAssignments(task.id, assignments);
+            const savedAssignments = extractCollection(assignmentsData, 'assignments');
+            setPeerAssignments(savedAssignments.length ? savedAssignments : assignments);
+            setPeerResults([]);
+            showToast('success', `Задания для взаимопроверки созданы: ${savedAssignments.length || assignments.length}`);
+        } catch (error) {
+            if (![404, 405].includes(error.response?.status)) {
+                console.error(error);
+                showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось сохранить задания для взаимопроверки');
+                setGeneratingPeerAssignments(false);
+                return;
+            }
+
+            setPeerAssignments(assignments);
+            showToast('success', `Задания для взаимопроверки созданы: ${assignments.length}`);
+        }
+
+        setGeneratingPeerAssignments(false);
     };
 
     const handleExportJson = () => {
@@ -1198,10 +1225,10 @@ const TaskSubmissionsPage = () => {
                                     <button
                                         type="button"
                                         onClick={handleGeneratePeerAssignments}
-                                        disabled={groupedSubmissions.length < 2}
+                                        disabled={groupedSubmissions.length < 2 || generatingPeerAssignments}
                                         className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        Сформировать задания
+                                        {generatingPeerAssignments ? 'Формируем...' : 'Сформировать задания'}
                                     </button>
                                 </div>
                             </div>
