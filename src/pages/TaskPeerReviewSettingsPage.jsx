@@ -32,6 +32,7 @@ const TaskPeerReviewSettingsPage = () => {
     const [peerForm, setPeerForm] = useState(DEFAULT_PEER_REVIEW_SETTINGS);
     const [loading, setLoading] = useState(true);
     const [savingPeer, setSavingPeer] = useState(false);
+    const [peerBackendUnavailable, setPeerBackendUnavailable] = useState(false);
 
     const taskPath = task && course && discipline
         ? buildTaskPath(course, discipline, task)
@@ -45,6 +46,7 @@ const TaskPeerReviewSettingsPage = () => {
 
     const fetchData = useCallback(async () => {
         setLoading(true);
+        setPeerBackendUnavailable(false);
 
         try {
             const taskData = await taskService.getTask(courseIdOrSlug, disciplineIdOrSlug, taskNumber);
@@ -63,10 +65,8 @@ const TaskPeerReviewSettingsPage = () => {
                 const settingsData = await peerReviewService.getTaskSettings(taskObject.id);
                 setPeerForm(normalizePeerReviewSettings(settingsData.settings || settingsData));
             } catch (settingsError) {
-                if (![404, 405].includes(settingsError.response?.status)) {
-                    throw settingsError;
-                }
-
+                console.error(settingsError);
+                setPeerBackendUnavailable(true);
                 setPeerForm(loadPeerReviewSettings(taskObject.id));
             }
         } catch (error) {
@@ -107,8 +107,9 @@ const TaskPeerReviewSettingsPage = () => {
             }
 
             console.error(error);
+            setPeerBackendUnavailable(true);
             setSavingPeer(false);
-            showToast('error', getApiMessage(error) || 'Не удалось сохранить настройки взаимопроверки');
+            showToast('error', getApiMessage(error) || 'Backend взаимопроверки недоступен. Проверьте миграции.');
         }
     };
 
@@ -182,6 +183,11 @@ const TaskPeerReviewSettingsPage = () => {
                             <p className="mt-3 text-sm leading-6 text-slate-400">
                                 Настройте, как студенты будут проверять работы друг друга. Сформировать задания можно на странице проверки работ.
                             </p>
+                            {peerBackendUnavailable && (
+                                <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm leading-6 text-amber-100">
+                                    Backend взаимопроверки сейчас недоступен. Настройки можно изменить на странице, но для реальной выдачи заданий студентам нужно выполнить миграции на сервере.
+                                </p>
+                            )}
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">

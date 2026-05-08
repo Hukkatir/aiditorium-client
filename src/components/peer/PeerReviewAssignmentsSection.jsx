@@ -41,6 +41,7 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
     const [forms, setForms] = useState({});
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [backendUnavailable, setBackendUnavailable] = useState(false);
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
@@ -53,6 +54,7 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
         }
 
         setLoading(true);
+        setBackendUnavailable(false);
 
         let nextAssignments = [];
         let nextResults = [];
@@ -66,6 +68,7 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
                 .filter(Boolean);
         } catch (error) {
             console.error(error);
+            setBackendUnavailable(true);
             nextAssignments = loadAllPeerReviewAssignments()
                 .filter((assignment) => Number(assignment.reviewer_id) === Number(user.id))
                 .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
@@ -285,6 +288,12 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
                     </button>
                 </div>
             </div>
+
+            {backendUnavailable && (
+                <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
+                    Backend взаимопроверки сейчас недоступен. Если заданий здесь нет, попросите преподавателя проверить миграции на сервере.
+                </div>
+            )}
 
             {loading ? (
                 <div className="mt-5 rounded-2xl border border-dashed border-white/10 px-6 py-12 text-center text-sm text-slate-500">

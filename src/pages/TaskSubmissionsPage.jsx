@@ -128,6 +128,11 @@ const isReviewPermissionError = (error) => {
     );
 };
 
+const getPeerReviewErrorMessage = (error) => (
+    getApiMessage(error)
+    || 'Модуль взаимопроверки сейчас недоступен. Проверьте, что на backend выполнены миграции.'
+);
+
 const AI_REVIEW_STATUS_META = {
     queued: { label: 'В очереди', className: 'bg-white/10 text-slate-300' },
     extracting: { label: 'Читает файл', className: 'bg-purple-500/10 text-purple-200' },
@@ -200,6 +205,7 @@ const TaskSubmissionsPage = () => {
     const [savingReviewers, setSavingReviewers] = useState(false);
     const [canManageReviewers, setCanManageReviewers] = useState(false);
     const [reviewAccessDenied, setReviewAccessDenied] = useState(false);
+    const [peerReviewUnavailable, setPeerReviewUnavailable] = useState(false);
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
@@ -458,6 +464,7 @@ const TaskSubmissionsPage = () => {
     const fetchPageData = useCallback(async () => {
         setLoading(true);
         setReviewAccessDenied(false);
+        setPeerReviewUnavailable(false);
 
         try {
             const taskData = await taskService.getTask(courseIdOrSlug, disciplineIdOrSlug, taskNumber);
@@ -471,6 +478,7 @@ const TaskSubmissionsPage = () => {
             const courseObject = courseData.course || courseData;
             const disciplineObject = disciplineData.discipline || disciplineData;
             let hasReviewAccessError = false;
+            let hasPeerReviewError = false;
 
             const handleReviewScopedError = (error, fallback) => {
                 if (error.response?.status === 404) {
@@ -485,6 +493,12 @@ const TaskSubmissionsPage = () => {
                 throw error;
             };
 
+            const handlePeerReviewScopedError = (error, fallback) => {
+                console.error(error);
+                hasPeerReviewError = true;
+                return fallback;
+            };
+
             const [usersData, reviewersData, submissionsData, gradesData, commentsData, aiReviewsData, peerSettingsData, peerAssignmentsData, peerResultsData] = await Promise.all([
                 courseService.getCourseUsers(courseObject.id).catch(() => ({ users: [] })),
                 taskService.getTaskReviewers(taskObject.id).catch(() => ({ reviewers: taskObject.reviewers || [] })),
@@ -497,11 +511,11 @@ const TaskSubmissionsPage = () => {
                 aiReviewService.getTaskAiReviews(taskObject.id, 100)
                     .catch((error) => handleReviewScopedError(error, { reviews: emptyPaginatedResponse })),
                 peerReviewService.getTaskSettings(taskObject.id)
-                    .catch((error) => handleReviewScopedError(error, { settings: loadPeerReviewSettings(taskObject.id) })),
+                    .catch((error) => handlePeerReviewScopedError(error, { settings: loadPeerReviewSettings(taskObject.id) })),
                 peerReviewService.getTaskAssignments(taskObject.id)
-                    .catch((error) => handleReviewScopedError(error, { assignments: loadPeerReviewAssignments(taskObject.id) })),
+                    .catch((error) => handlePeerReviewScopedError(error, { assignments: loadPeerReviewAssignments(taskObject.id) })),
                 peerReviewService.getTaskResults(taskObject.id)
-                    .catch((error) => handleReviewScopedError(error, { results: loadPeerReviewResults(taskObject.id) }))
+                    .catch((error) => handlePeerReviewScopedError(error, { results: loadPeerReviewResults(taskObject.id) }))
             ]);
 
             const users = usersData.users || usersData.data || [];
@@ -524,6 +538,7 @@ const TaskSubmissionsPage = () => {
                 ?? Number(taskObject.user_id) === Number(user?.id)
             ));
             setReviewAccessDenied(hasReviewAccessError);
+            setPeerReviewUnavailable(hasPeerReviewError);
             setSubmissions(extractCollection(submissionsData, 'submissions'));
             setGrades(extractCollection(gradesData, 'grades'));
             setTaskComments(extractCollection(commentsData));
@@ -782,7 +797,7 @@ const TaskSubmissionsPage = () => {
         } catch (error) {
             if (![404, 405].includes(error.response?.status)) {
                 console.error(error);
-                showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось сохранить задания для взаимопроверки');
+                showToast('error', getPeerReviewErrorMessage(error));
                 setGeneratingPeerAssignments(false);
                 return;
             }
@@ -1210,6 +1225,11 @@ const TaskSubmissionsPage = () => {
                                     <p className="mt-2 text-sm leading-6 text-slate-500">
                                         Создайте задания для студентов после настройки режима проверки.
                                     </p>
+                                    {peerReviewUnavailable && (
+                                        <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm leading-6 text-amber-100">
+                                            Backend взаимопроверки сейчас недоступен. Страница проверки работает, но чтобы студенты увидели задания в разделе «Мои задания», на сервере нужно применить миграции.
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {canManageReviewers && (
@@ -1225,7 +1245,7 @@ const TaskSubmissionsPage = () => {
                                     <button
                                         type="button"
                                         onClick={handleGeneratePeerAssignments}
-                                        disabled={groupedSubmissions.length < 2 || generatingPeerAssignments}
+                                        disabled={groupedSubmissions.length < 2 || generatingPeerAssignments || peerReviewUnavailable}
                                         className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {generatingPeerAssignments ? 'Формируем...' : 'Сформировать задания'}
