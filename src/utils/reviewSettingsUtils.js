@@ -7,6 +7,25 @@ export const DEFAULT_AI_MODEL_OPTIONS = [
     { key: 'deepseek_v4', label: 'Deepseek v4' }
 ];
 
+export const formatAiModelLabel = (model = '') => {
+    const value = String(model || '').trim();
+    const normalized = value.toLowerCase();
+
+    if (!value) {
+        return '';
+    }
+
+    if (normalized === 'deepseek_v4' || normalized === 'deepseek v4' || normalized.includes('gpt-5.5')) {
+        return 'Deepseek v4';
+    }
+
+    if (normalized === 'minimax' || normalized.includes('minimax')) {
+        return 'MiniMax';
+    }
+
+    return value;
+};
+
 export const DEFAULT_AI_RUBRIC = [
     {
         id: 'requirements',

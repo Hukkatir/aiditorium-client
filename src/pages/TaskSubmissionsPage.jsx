@@ -51,7 +51,12 @@ import {
     getSourceValues
 } from '../utils/gradeReviewUtils';
 import { loadFinalGrades, saveFinalGrade } from '../utils/finalGradeUtils';
-import { DEFAULT_PEER_REVIEW_SETTINGS, loadPeerReviewSettings, normalizePeerReviewSettings } from '../utils/reviewSettingsUtils';
+import {
+    DEFAULT_PEER_REVIEW_SETTINGS,
+    formatAiModelLabel,
+    loadPeerReviewSettings,
+    normalizePeerReviewSettings
+} from '../utils/reviewSettingsUtils';
 import {
     buildPeerAveragesByStudent,
     generatePeerReviewAssignments,
@@ -1719,7 +1724,7 @@ const TaskSubmissionsPage = () => {
                                                 </span>
                                                 {selectedAiReview?.model && (
                                                     <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-                                                        {selectedAiReview.model}
+                                                        {formatAiModelLabel(selectedAiReview.model)}
                                                     </span>
                                                 )}
                                             </div>
