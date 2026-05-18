@@ -12,7 +12,12 @@ import { aiReviewService } from '../services/aiReviewService';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
 import { taskService } from '../services/taskService';
-import { DEFAULT_AI_RUBRIC, DEFAULT_AI_SUPPORTED_FORMATS } from '../utils/reviewSettingsUtils';
+import {
+    DEFAULT_AI_MODEL_KEY,
+    DEFAULT_AI_MODEL_OPTIONS,
+    DEFAULT_AI_RUBRIC,
+    DEFAULT_AI_SUPPORTED_FORMATS
+} from '../utils/reviewSettingsUtils';
 import { buildTaskPath, buildTaskPeerReviewSettingsPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
 
 const getTaskMaxScore = (task) => {
@@ -47,16 +52,21 @@ const normalizeCriterion = (criterion = {}, index = 0) => ({
     checks: []
 });
 
-const normalizeProfile = (profile = {}, maxScore = 100) => ({
-    enabled: true,
-    rubric: Array.isArray(profile.rubric) && profile.rubric.length
-        ? profile.rubric.map(normalizeCriterion)
-        : buildDefaultRubric(maxScore),
-    custom_prompt: '',
-    supported_formats: Array.isArray(profile.supported_formats) && profile.supported_formats.length
-        ? profile.supported_formats
-        : DEFAULT_AI_SUPPORTED_FORMATS
-});
+const normalizeProfile = (profile = {}, maxScore = 100) => {
+    const safeProfile = profile || {};
+
+    return {
+        enabled: true,
+        ai_model_key: safeProfile.ai_model_key || DEFAULT_AI_MODEL_KEY,
+        rubric: Array.isArray(safeProfile.rubric) && safeProfile.rubric.length
+            ? safeProfile.rubric.map(normalizeCriterion)
+            : buildDefaultRubric(maxScore),
+        custom_prompt: '',
+        supported_formats: Array.isArray(safeProfile.supported_formats) && safeProfile.supported_formats.length
+            ? safeProfile.supported_formats
+            : DEFAULT_AI_SUPPORTED_FORMATS
+    };
+};
 
 const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
 
@@ -73,6 +83,7 @@ const TaskReviewSettingsPage = () => {
     const [loading, setLoading] = useState(true);
     const [savingProfile, setSavingProfile] = useState(false);
     const [accessDenied, setAccessDenied] = useState(false);
+    const [availableModels, setAvailableModels] = useState(DEFAULT_AI_MODEL_OPTIONS);
 
     const maxScore = useMemo(() => getTaskMaxScore(task), [task]);
     const taskPath = task && course && discipline
@@ -117,6 +128,11 @@ const TaskReviewSettingsPage = () => {
             setCourse(courseData.course || courseData);
             setDiscipline(disciplineData.discipline || disciplineData);
             setProfileForm(normalizeProfile(profileData.profile, taskMaxScore));
+            setAvailableModels(
+                Array.isArray(profileData.available_models) && profileData.available_models.length
+                    ? profileData.available_models
+                    : DEFAULT_AI_MODEL_OPTIONS
+            );
         } catch (error) {
             console.error(error);
             showToast('error', getApiMessage(error) || 'Не удалось загрузить настройки проверки искусственным интеллектом');
@@ -210,6 +226,7 @@ const TaskReviewSettingsPage = () => {
         try {
             const payload = {
                 enabled: true,
+                ai_model_key: profileForm.ai_model_key || DEFAULT_AI_MODEL_KEY,
                 rubric: profileForm.rubric.map((criterion, index) => ({
                     id: criterion.id || `criterion-${index + 1}`,
                     label: criterion.label.trim(),
@@ -335,6 +352,29 @@ const TaskReviewSettingsPage = () => {
                             <span className={`rounded-full px-3 py-1.5 text-xs font-medium ${remainingPoints === 0 ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-100'}`}>
                                 {remainingPoints === 0 ? 'Баллы распределены' : `Осталось: ${remainingPoints}`}
                             </span>
+                        </div>
+
+                        <div className="mt-5">
+                            <label className="mb-2 block text-sm text-slate-400">Модель проверки</label>
+                            <div className="inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-1">
+                                {availableModels.map((model) => {
+                                    const isActive = profileForm.ai_model_key === model.key;
+
+                                    return (
+                                        <button
+                                            key={model.key}
+                                            type="button"
+                                            onClick={() => setProfileForm((previous) => ({
+                                                ...previous,
+                                                ai_model_key: model.key
+                                            }))}
+                                            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${isActive ? 'bg-purple-600 text-white' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+                                        >
+                                            {model.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         <div className="mt-5 space-y-4">

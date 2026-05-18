@@ -1,5 +1,12 @@
 export const DEFAULT_AI_SUPPORTED_FORMATS = ['docx', 'xlsx', 'csv', 'tsv', 'zip', 'rar', '7z', 'php', 'js', 'ts', 'py', 'java', 'cs'];
 
+export const DEFAULT_AI_MODEL_KEY = 'minimax';
+
+export const DEFAULT_AI_MODEL_OPTIONS = [
+    { key: 'minimax', label: 'MiniMax' },
+    { key: 'deepseek_v4', label: 'Deepseek v4' }
+];
+
 export const DEFAULT_AI_RUBRIC = [
     {
         id: 'requirements',
