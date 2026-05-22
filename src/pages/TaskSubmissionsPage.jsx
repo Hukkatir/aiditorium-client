@@ -3,16 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     HiArrowLeft,
     HiArrowDownTray,
-    HiArrowPath,
-    HiBolt,
     HiCalendar,
     HiCheck,
     HiCog6Tooth,
-    HiCpuChip,
     HiDocumentArrowDown,
     HiExclamationTriangle,
     HiMagnifyingGlass,
     HiShieldCheck,
+    HiSparkles,
     HiStar,
     HiTableCells,
     HiUserGroup,
@@ -53,17 +51,14 @@ import {
 import { loadFinalGrades, saveFinalGrade } from '../utils/finalGradeUtils';
 import {
     DEFAULT_PEER_REVIEW_SETTINGS,
-    formatAiModelLabel,
     loadPeerReviewSettings,
     normalizePeerReviewSettings
 } from '../utils/reviewSettingsUtils';
 import {
     buildPeerAveragesByStudent,
-    generatePeerReviewAssignments,
-    loadPeerReviewAssignments,
-    loadPeerReviewResults,
-    savePeerReviewAssignments
+    loadPeerReviewResults
 } from '../utils/peerReviewUtils';
+import { getAiReviewStatus } from '../utils/aiReviewPresentation';
 
 const formatDateTime = (dateString) => {
     if (!dateString) {
@@ -95,32 +90,6 @@ const emptyPaginatedResponse = { data: [] };
 
 const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
 
-const getFriendlyAiErrorMessage = (error) => {
-    const message = getApiMessage(error);
-
-    if (/ZipArchive/i.test(message)) {
-        return 'Не удалось прочитать DOCX-файл для проверки. Попробуйте загрузить работу в другом формате или повторите проверку позже.';
-    }
-
-    if (/cURL error 28|timed out|timeout|OpenRouter connection failed/i.test(message)) {
-        return 'OpenRouter не успел ответить вовремя. Backend повторяет такие запросы автоматически; если ошибка повторяется после всех попыток, увеличьте AI_TIMEOUT/AI_OPENROUTER_RETRY_ATTEMPTS или проверьте загруженность модели.';
-    }
-
-    if (/Elephant Alpha|Ling-2\.6|ling-2\.6|model.*(not found|unavailable|invalid)|no endpoints found|not a valid model|model .* does not exist|unsupported model/i.test(message)) {
-        return 'Выбранная модель искусственного интеллекта сейчас недоступна в OpenRouter. Проверьте AI_MODEL в backend .env и очистите кеш конфигурации Laravel.';
-    }
-
-    if (/OpenRouter request failed/i.test(message)) {
-        return `OpenRouter вернул ошибку: ${message.replace(/^OpenRouter request failed:\s*/i, '')}`;
-    }
-
-    return message;
-};
-
-const formatAiRuntimeMessage = (message = '') => (
-    getFriendlyAiErrorMessage({ response: { data: { message } } }) || message
-);
-
 const isReviewPermissionError = (error) => {
     const message = getApiMessage(error);
     return error.response?.status === 403 && (
@@ -131,29 +100,6 @@ const isReviewPermissionError = (error) => {
         || /доступ/i.test(message)
         || /unauthorized/i.test(message)
     );
-};
-
-const getPeerReviewErrorMessage = (error) => (
-    getApiMessage(error)
-    || 'Модуль взаимопроверки сейчас недоступен. Проверьте, что на backend выполнены миграции.'
-);
-
-const AI_REVIEW_STATUS_META = {
-    queued: { label: 'В очереди', className: 'bg-white/10 text-slate-300' },
-    extracting: { label: 'Читает файл', className: 'bg-purple-500/10 text-purple-200' },
-    analyzing: { label: 'Проверяет', className: 'bg-purple-500/10 text-purple-200' },
-    completed: { label: 'Готово', className: 'bg-emerald-500/10 text-emerald-200' },
-    failed: { label: 'Ошибка', className: 'bg-red-500/10 text-red-200' }
-};
-
-const getAiReviewStatus = (review) => {
-    const status = String(review?.status?.value || review?.status || '').toLowerCase();
-    return AI_REVIEW_STATUS_META[status] || { label: review ? status || 'Неизвестно' : 'Не запускалась', className: 'bg-white/10 text-slate-300' };
-};
-
-const isAiReviewActive = (review) => {
-    const status = String(review?.status?.value || review?.status || '').toLowerCase();
-    return ['queued', 'extracting', 'analyzing'].includes(status);
 };
 
 const escapeHtml = (value) => String(value ?? '')
@@ -192,17 +138,12 @@ const TaskSubmissionsPage = () => {
     const [grades, setGrades] = useState([]);
     const [aiReviews, setAiReviews] = useState([]);
     const [peerSettings, setPeerSettings] = useState(DEFAULT_PEER_REVIEW_SETTINGS);
-    const [peerAssignments, setPeerAssignments] = useState([]);
     const [peerResults, setPeerResults] = useState([]);
-    const [generatingPeerAssignments, setGeneratingPeerAssignments] = useState(false);
     const [gradeInputs, setGradeInputs] = useState({});
     const [finalGrades, setFinalGrades] = useState({});
     const [finalGradeInputs, setFinalGradeInputs] = useState({});
     const [savingGradeFor, setSavingGradeFor] = useState(null);
     const [savingFinalGradeFor, setSavingFinalGradeFor] = useState(null);
-    const [queueingAiReviewFor, setQueueingAiReviewFor] = useState(null);
-    const [queueingAllAiReviews, setQueueingAllAiReviews] = useState(false);
-    const [pollingAiReviews, setPollingAiReviews] = useState(false);
     const [selectedStudentId, setSelectedStudentId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [studentFilter, setStudentFilter] = useState('all');
@@ -210,7 +151,6 @@ const TaskSubmissionsPage = () => {
     const [savingReviewers, setSavingReviewers] = useState(false);
     const [canManageReviewers, setCanManageReviewers] = useState(false);
     const [reviewAccessDenied, setReviewAccessDenied] = useState(false);
-    const [peerReviewUnavailable, setPeerReviewUnavailable] = useState(false);
 
     const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
 
@@ -242,7 +182,24 @@ const TaskSubmissionsPage = () => {
         [courseUsers, task]
     );
 
-    const groupedSubmissions = useMemo(() => {
+    const courseStudents = useMemo(
+        () => courseUsers.filter((courseUser) => {
+            const role = String(courseUser.pivot?.role || '').toLowerCase();
+
+            if (role === 'student') {
+                return true;
+            }
+
+            if (role === 'teacher') {
+                return false;
+            }
+
+            return Number(courseUser.id) !== Number(course?.creator_id);
+        }),
+        [course?.creator_id, courseUsers]
+    );
+
+    const submissionGroups = useMemo(() => {
         const groups = new Map();
         const sortedSubmissions = [...submissions].sort(
             (left, right) => new Date(right.created_at) - new Date(left.created_at)
@@ -261,12 +218,62 @@ const TaskSubmissionsPage = () => {
                 userId,
                 user: submission.user,
                 latestSubmission: submission,
-                submissions: [submission]
+                submissions: [submission],
+                hasSubmission: true
             });
         });
 
         return Array.from(groups.values());
     }, [submissions]);
+
+    const groupedSubmissions = useMemo(() => {
+        const submittedByStudent = new Map(
+            submissionGroups.map((group) => [group.userId, group])
+        );
+        const studentIds = new Set();
+
+        const groups = courseStudents.map((student) => {
+            const userId = Number(student.id);
+            const submittedGroup = submittedByStudent.get(userId);
+            studentIds.add(userId);
+
+            if (submittedGroup) {
+                return {
+                    ...submittedGroup,
+                    user: submittedGroup.user || student,
+                    hasSubmission: true
+                };
+            }
+
+            return {
+                userId,
+                user: student,
+                latestSubmission: null,
+                submissions: [],
+                hasSubmission: false
+            };
+        });
+
+        submissionGroups.forEach((group) => {
+            if (!studentIds.has(group.userId)) {
+                groups.push(group);
+            }
+        });
+
+        return groups.sort((left, right) => {
+            if (left.hasSubmission !== right.hasSubmission) {
+                return left.hasSubmission ? -1 : 1;
+            }
+
+            if (left.hasSubmission && right.hasSubmission) {
+                return new Date(right.latestSubmission?.created_at || 0) - new Date(left.latestSubmission?.created_at || 0);
+            }
+
+            const leftName = (left.user?.name || left.user?.email || '').toLowerCase();
+            const rightName = (right.user?.name || right.user?.email || '').toLowerCase();
+            return leftName.localeCompare(rightName, 'ru');
+        });
+    }, [courseStudents, submissionGroups]);
 
     const submissionOwners = useMemo(() => {
         const entries = submissions.map((submission) => [Number(submission.id), Number(submission.user_id)]);
@@ -316,12 +323,21 @@ const TaskSubmissionsPage = () => {
     const filteredGroups = useMemo(() => {
         return groupedSubmissions.filter((group) => {
             const hasTeacherGrade = gradesByStudent.has(group.userId);
+            const hasSubmission = Boolean(group.hasSubmission);
 
             if (studentFilter === 'graded' && !hasTeacherGrade) {
                 return false;
             }
 
             if (studentFilter === 'ungraded' && hasTeacherGrade) {
+                return false;
+            }
+
+            if (studentFilter === 'submitted' && !hasSubmission) {
+                return false;
+            }
+
+            if (studentFilter === 'missing' && hasSubmission) {
                 return false;
             }
 
@@ -348,7 +364,7 @@ const TaskSubmissionsPage = () => {
     );
 
     const selectedStudentComments = useMemo(() => {
-        if (!selectedGroup) {
+        if (!selectedGroup?.hasSubmission) {
             return [];
         }
 
@@ -381,29 +397,13 @@ const TaskSubmissionsPage = () => {
         [gradesByStudent, groupedSubmissions]
     );
 
-    const latestSubmittedAt = groupedSubmissions[0]?.latestSubmission?.created_at || null;
-
-    const aiReviewStats = useMemo(() => {
-        const stats = {
-            total: aiReviews.length,
-            completed: 0,
-            active: 0,
-            failed: 0
-        };
-
-        aiReviews.forEach((review) => {
-            const status = String(review?.status?.value || review?.status || '').toLowerCase();
-            if (status === 'completed') {
-                stats.completed += 1;
-            } else if (status === 'failed') {
-                stats.failed += 1;
-            } else if (status) {
-                stats.active += 1;
-            }
-        });
-
-        return stats;
-    }, [aiReviews]);
+    const submittedCount = useMemo(
+        () => groupedSubmissions.filter((group) => group.hasSubmission).length,
+        [groupedSubmissions]
+    );
+    const missingCount = groupedSubmissions.length - submittedCount;
+    const ungradedCount = groupedSubmissions.length - gradedCount;
+    const latestSubmittedAt = submissionGroups[0]?.latestSubmission?.created_at || null;
 
     const journalRows = useMemo(() => groupedSubmissions.map((group) => {
         const sources = gradeSourcesByStudent.get(group.userId) || {};
@@ -418,6 +418,7 @@ const TaskSubmissionsPage = () => {
             studentEmail: group.user?.email || '',
             latestSubmissionAt: group.latestSubmission?.created_at || null,
             submissionsCount: group.submissions.length,
+            submissionStatus: group.hasSubmission ? 'Сдано' : 'Не сдано',
             teacherGrade: values.teacher,
             aiGrade: values.ai,
             peerGrade: values.peer,
@@ -469,7 +470,6 @@ const TaskSubmissionsPage = () => {
     const fetchPageData = useCallback(async () => {
         setLoading(true);
         setReviewAccessDenied(false);
-        setPeerReviewUnavailable(false);
 
         try {
             const taskData = await taskService.getTask(courseIdOrSlug, disciplineIdOrSlug, taskNumber);
@@ -483,7 +483,6 @@ const TaskSubmissionsPage = () => {
             const courseObject = courseData.course || courseData;
             const disciplineObject = disciplineData.discipline || disciplineData;
             let hasReviewAccessError = false;
-            let hasPeerReviewError = false;
 
             const handleReviewScopedError = (error, fallback) => {
                 if (error.response?.status === 404) {
@@ -500,11 +499,10 @@ const TaskSubmissionsPage = () => {
 
             const handlePeerReviewScopedError = (error, fallback) => {
                 console.error(error);
-                hasPeerReviewError = true;
                 return fallback;
             };
 
-            const [usersData, reviewersData, submissionsData, gradesData, commentsData, aiReviewsData, peerSettingsData, peerAssignmentsData, peerResultsData] = await Promise.all([
+            const [usersData, reviewersData, submissionsData, gradesData, commentsData, aiReviewsData, peerSettingsData, peerResultsData] = await Promise.all([
                 courseService.getCourseUsers(courseObject.id).catch(() => ({ users: [] })),
                 taskService.getTaskReviewers(taskObject.id).catch(() => ({ reviewers: taskObject.reviewers || [] })),
                 taskService.getTaskSubmissions(taskObject.id, 100)
@@ -517,8 +515,6 @@ const TaskSubmissionsPage = () => {
                     .catch((error) => handleReviewScopedError(error, { reviews: emptyPaginatedResponse })),
                 peerReviewService.getTaskSettings(taskObject.id)
                     .catch((error) => handlePeerReviewScopedError(error, { settings: loadPeerReviewSettings(taskObject.id) })),
-                peerReviewService.getTaskAssignments(taskObject.id)
-                    .catch((error) => handlePeerReviewScopedError(error, { assignments: loadPeerReviewAssignments(taskObject.id) })),
                 peerReviewService.getTaskResults(taskObject.id)
                     .catch((error) => handlePeerReviewScopedError(error, { results: loadPeerReviewResults(taskObject.id) }))
             ]);
@@ -543,13 +539,11 @@ const TaskSubmissionsPage = () => {
                 ?? Number(taskObject.user_id) === Number(user?.id)
             ));
             setReviewAccessDenied(hasReviewAccessError);
-            setPeerReviewUnavailable(hasPeerReviewError);
             setSubmissions(extractCollection(submissionsData, 'submissions'));
             setGrades(extractCollection(gradesData, 'grades'));
             setTaskComments(extractCollection(commentsData));
             setAiReviews(extractCollection(aiReviewsData, 'reviews'));
             setPeerSettings(normalizePeerReviewSettings(peerSettingsData.settings || peerSettingsData));
-            setPeerAssignments(extractCollection(peerAssignmentsData, 'assignments'));
             setPeerResults(extractCollection(peerResultsData, 'results'));
             setFinalGrades(loadFinalGrades(taskObject.id));
 
@@ -587,37 +581,6 @@ const TaskSubmissionsPage = () => {
         } catch (error) {
             console.error(error);
             showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось обновить комментарии');
-        }
-    }, [showToast, task?.id]);
-
-    const pollAiReviewsUntilSettled = useCallback(async (maxAttempts = 240) => {
-        if (!task?.id) {
-            return;
-        }
-
-        setPollingAiReviews(true);
-
-        try {
-            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-                const reviewsData = await aiReviewService.getTaskAiReviews(task.id, 100);
-                const nextReviews = extractCollection(reviewsData, 'reviews');
-                setAiReviews(nextReviews);
-
-                if (!nextReviews.some(isAiReviewActive)) {
-                    break;
-                }
-
-                await new Promise((resolve) => {
-                    window.setTimeout(resolve, 3000);
-                });
-            }
-        } catch (error) {
-            if (!isReviewPermissionError(error)) {
-                console.error(error);
-                showToast('error', getApiMessage(error) || 'Не удалось обновить результаты AI-проверки');
-            }
-        } finally {
-            setPollingAiReviews(false);
         }
     }, [showToast, task?.id]);
 
@@ -719,101 +682,6 @@ const TaskSubmissionsPage = () => {
         showToast('success', 'Оценка AI подставлена в итоговый балл');
     };
 
-    const handleQueueAiReview = async (group, forceRecheck = false) => {
-        if (!task?.id || !group?.latestSubmission?.id) {
-            return;
-        }
-
-        setQueueingAiReviewFor(group.userId);
-
-        try {
-            await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
-            showToast('success', forceRecheck ? 'Повторная проверка искусственным интеллектом запущена' : 'Проверка искусственным интеллектом запущена');
-            await pollAiReviewsUntilSettled();
-        } catch (error) {
-            console.error(error);
-            showToast('error', getFriendlyAiErrorMessage(error) || 'Не удалось запустить AI-проверку. Проверьте настройки критериев.', 6000);
-        } finally {
-            setQueueingAiReviewFor(null);
-        }
-    };
-
-    const handleQueueAllAiReviews = async () => {
-        if (!task?.id || !groupedSubmissions.length) {
-            return;
-        }
-
-        setQueueingAllAiReviews(true);
-        let successCount = 0;
-        let failedMessage = '';
-
-        try {
-            for (const group of groupedSubmissions) {
-                try {
-                    const hasReview = latestAiReviewByStudent.has(group.userId);
-                    await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, hasReview);
-                    successCount += 1;
-                } catch (error) {
-                    console.error(error);
-                    failedMessage = failedMessage || getFriendlyAiErrorMessage(error) || 'Не все работы удалось отправить на AI-проверку.';
-                }
-            }
-
-            if (successCount > 0) {
-                showToast('success', `Проверка искусственным интеллектом запущена для работ: ${successCount}`);
-                await pollAiReviewsUntilSettled();
-            }
-
-            if (failedMessage) {
-                showToast('error', failedMessage, 7000);
-            }
-        } finally {
-            setQueueingAllAiReviews(false);
-        }
-    };
-
-    const handleGeneratePeerAssignments = async () => {
-        if (!task || !course || !discipline) {
-            return;
-        }
-
-        const assignments = generatePeerReviewAssignments({
-            task,
-            course,
-            discipline,
-            groups: groupedSubmissions,
-            settings: peerSettings
-        });
-
-        if (!assignments.length) {
-            showToast('error', 'Для взаимопроверки нужно минимум две сданные работы');
-            return;
-        }
-
-        setGeneratingPeerAssignments(true);
-        savePeerReviewAssignments(task.id, assignments);
-
-        try {
-            const assignmentsData = await peerReviewService.replaceTaskAssignments(task.id, assignments);
-            const savedAssignments = extractCollection(assignmentsData, 'assignments');
-            setPeerAssignments(savedAssignments.length ? savedAssignments : assignments);
-            setPeerResults([]);
-            showToast('success', `Задания для взаимопроверки созданы: ${savedAssignments.length || assignments.length}`);
-        } catch (error) {
-            if (![404, 405].includes(error.response?.status)) {
-                console.error(error);
-                showToast('error', getPeerReviewErrorMessage(error));
-                setGeneratingPeerAssignments(false);
-                return;
-            }
-
-            setPeerAssignments(assignments);
-            showToast('success', `Задания для взаимопроверки созданы: ${assignments.length}`);
-        }
-
-        setGeneratingPeerAssignments(false);
-    };
-
     const handleExportJson = () => {
         if (!journalRows.length) {
             showToast('error', 'В журнале пока нет строк для экспорта');
@@ -852,6 +720,7 @@ const TaskSubmissionsPage = () => {
                 <td>${escapeHtml(formatGradeValue(row.averageGrade, gradeLimit))}</td>
                 <td>${escapeHtml(formatGradeValue(row.finalGrade, gradeLimit))}</td>
                 <td>${escapeHtml(row.aiReviewStatus)}</td>
+                <td>${escapeHtml(row.submissionStatus)}</td>
                 <td>${escapeHtml(formatDateTime(row.latestSubmissionAt))}</td>
                 <td>${escapeHtml(row.submissionsCount)}</td>
             </tr>
@@ -876,6 +745,7 @@ const TaskSubmissionsPage = () => {
                                 <th>Среднее</th>
                                 <th>Итог</th>
                                 <th>AI-статус</th>
+                                <th>Статус сдачи</th>
                                 <th>Последняя сдача</th>
                                 <th>Версий</th>
                             </tr>
@@ -915,14 +785,19 @@ const TaskSubmissionsPage = () => {
             if (existingGrade) {
                 await gradeService.updateGrade(existingGrade.id, { grade: numericGrade });
             } else {
-                await gradeService.createGrade({
+                const payload = {
                     user_id: group.userId,
                     course_id: course.id,
                     task_id: task.id,
                     discipline_id: discipline?.id,
-                    file_id: group.latestSubmission.id,
                     grade: numericGrade
-                });
+                };
+
+                if (group.latestSubmission?.id) {
+                    payload.file_id = group.latestSubmission.id;
+                }
+
+                await gradeService.createGrade(payload);
             }
 
             showToast('success', `Оценка для ${group.user?.name || 'студента'} сохранена`);
@@ -967,6 +842,11 @@ const TaskSubmissionsPage = () => {
     };
 
     const handleCreatePrivateComment = async (group, body) => {
+        if (!group.latestSubmission?.id) {
+            showToast('error', 'Личную переписку можно начать после сдачи файла');
+            return;
+        }
+
         try {
             const payload = {
                 course_id: course.id,
@@ -1080,9 +960,9 @@ const TaskSubmissionsPage = () => {
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                             <div className="flex items-center gap-2 text-sm text-slate-500">
                                 <HiUserCircle className="h-4 w-4" />
-                                Работы
+                                Сдали
                             </div>
-                            <p className="mt-2 text-sm font-medium text-white">{groupedSubmissions.length} студентов</p>
+                            <p className="mt-2 text-sm font-medium text-white">{submittedCount} из {groupedSubmissions.length} студентов</p>
                         </div>
                     </div>
                 </section>
@@ -1171,53 +1051,32 @@ const TaskSubmissionsPage = () => {
                             <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <HiBolt className="h-5 w-5 text-purple-300" />
-                                        <h2 className="text-xl font-semibold text-white">Проверка искусственным интеллектом</h2>
+                                        <HiSparkles className="h-5 w-5 text-purple-300" />
+                                        <h2 className="text-xl font-semibold text-white">Настройки AI-проверки</h2>
                                     </div>
                                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                                        Запускайте проверку выбранной работы или сразу всех сданных файлов.
+                                        Критерии, запуск проверки и подробные результаты вынесены на отдельную страницу.
                                     </p>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {canManageReviewers && (
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate(aiSettingsPath)}
-                                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
-                                        >
-                                            <HiCog6Tooth className="h-4 w-4" />
-                                            Настройки
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={handleQueueAllAiReviews}
-                                        disabled={queueingAllAiReviews || pollingAiReviews || groupedSubmissions.length === 0}
-                                        className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews || pollingAiReviews ? 'animate-spin' : ''}`} />
-                                        {queueingAllAiReviews
-                                            ? 'Запускаем...'
-                                            : pollingAiReviews ? 'Ждем результаты...' : 'Проверить все работы'}
-                                    </button>
-                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(aiSettingsPath)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                >
+                                    <HiCog6Tooth className="h-4 w-4" />
+                                    Открыть настройки
+                                </button>
                             </div>
 
-                            <div className="mt-5 grid grid-cols-3 gap-2 text-xs">
-                                <div className="rounded-xl bg-white/[0.04] p-3">
-                                    <p className="text-slate-500">Готово</p>
-                                    <p className="mt-1 text-lg font-semibold text-emerald-200">{aiReviewStats.completed}</p>
-                                </div>
-                                <div className="rounded-xl bg-white/[0.04] p-3">
-                                    <p className="text-slate-500">В работе</p>
-                                    <p className="mt-1 text-lg font-semibold text-purple-200">{aiReviewStats.active}</p>
-                                </div>
-                                <div className="rounded-xl bg-white/[0.04] p-3">
-                                    <p className="text-slate-500">Ошибки</p>
-                                    <p className="mt-1 text-lg font-semibold text-red-200">{aiReviewStats.failed}</p>
-                                </div>
+                            <div className="mt-5 flex flex-wrap gap-2 text-xs">
+                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                    Работ: {submittedCount}
+                                </span>
+                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
+                                    AI-проверок: {aiReviews.length}
+                                </span>
                             </div>
-
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
@@ -1225,54 +1084,34 @@ const TaskSubmissionsPage = () => {
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <HiUserGroup className="h-5 w-5 text-purple-300" />
-                                        <h2 className="text-xl font-semibold text-white">Взаимопроверка</h2>
+                                        <h2 className="text-xl font-semibold text-white">Настройки взаимопроверки</h2>
                                     </div>
                                     <p className="mt-2 text-sm leading-6 text-slate-500">
-                                        Создайте задания для студентов после настройки режима проверки.
+                                        Режим проверки, распределение работ и ответы студентов находятся на странице взаимопроверки.
                                     </p>
-                                    {peerReviewUnavailable && (
-                                        <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm leading-6 text-amber-100">
-                                            Backend взаимопроверки сейчас недоступен. Страница проверки работает, но чтобы студенты увидели задания в разделе «Мои задания», на сервере нужно применить миграции.
-                                        </p>
-                                    )}
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {canManageReviewers && (
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate(peerSettingsPath)}
-                                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
-                                        >
-                                            <HiCog6Tooth className="h-4 w-4" />
-                                            Настройки
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={handleGeneratePeerAssignments}
-                                        disabled={groupedSubmissions.length < 2 || generatingPeerAssignments || peerReviewUnavailable}
-                                        className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        {generatingPeerAssignments ? 'Формируем...' : 'Сформировать задания'}
-                                    </button>
-                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(peerSettingsPath)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+                                >
+                                    <HiCog6Tooth className="h-4 w-4" />
+                                    Открыть настройки
+                                </button>
                             </div>
 
                             <div className="mt-5 flex flex-wrap gap-2 text-xs">
                                 <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                    Активна
-                                </span>
-                                <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                     {peerSettings.mode === 'open' ? 'Открытая' : 'Слепая'}
                                 </span>
                                 <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                    Назначений: {peerAssignments.length}
+                                    Проверок на студента: {peerSettings.reviewsPerStudent}
                                 </span>
                                 <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                     Ответов: {peerResults.length}
                                 </span>
                             </div>
-
                         </div>
                     </section>
                 )}
@@ -1328,7 +1167,7 @@ const TaskSubmissionsPage = () => {
                                         <th className="px-4 py-3">AI</th>
                                         <th className="px-4 py-3">Взаимопроверка</th>
                                         <th className="px-4 py-3">Итог</th>
-                                        <th className="px-4 py-3">Сдача</th>
+                                        <th className="px-4 py-3">Статус</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/10">
@@ -1351,7 +1190,20 @@ const TaskSubmissionsPage = () => {
                                                     {formatGradeValue(row.finalGrade, gradeLimit)}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-xs text-slate-500">{formatDateTime(row.latestSubmissionAt)}</td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${
+                                                        row.latestSubmissionAt
+                                                            ? 'bg-emerald-500/10 text-emerald-200'
+                                                            : 'bg-red-500/10 text-red-200'
+                                                    }`}>
+                                                        {row.submissionStatus}
+                                                    </span>
+                                                    {row.latestSubmissionAt && (
+                                                        <span className="text-xs text-slate-500">{formatDateTime(row.latestSubmissionAt)}</span>
+                                                    )}
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -1362,7 +1214,7 @@ const TaskSubmissionsPage = () => {
 
                 {reviewAccessDenied ? null : groupedSubmissions.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 px-6 py-16 text-center text-slate-500">
-                        Пока никто не сдал работу по этому заданию.
+                        В курсе пока нет студентов для проверки.
                     </div>
                 ) : (
                     <div className="grid gap-6 xl:grid-cols-[320px,minmax(0,1fr)]">
@@ -1391,6 +1243,39 @@ const TaskSubmissionsPage = () => {
                             <div className="mt-4 flex flex-wrap gap-2 text-xs">
                                 <button
                                     type="button"
+                                    onClick={() => setStudentFilter('all')}
+                                    className={`rounded-full px-3 py-1.5 transition ${
+                                        studentFilter === 'all'
+                                            ? 'bg-purple-500/15 text-purple-100'
+                                            : 'bg-white/10 text-slate-300 hover:bg-white/15'
+                                    }`}
+                                >
+                                    Все: {groupedSubmissions.length}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStudentFilter(studentFilter === 'submitted' ? 'all' : 'submitted')}
+                                    className={`rounded-full px-3 py-1.5 transition ${
+                                        studentFilter === 'submitted'
+                                            ? 'bg-emerald-500/15 text-emerald-200'
+                                            : 'bg-white/10 text-slate-300 hover:bg-white/15'
+                                    }`}
+                                >
+                                    Сдали: {submittedCount}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStudentFilter(studentFilter === 'missing' ? 'all' : 'missing')}
+                                    className={`rounded-full px-3 py-1.5 transition ${
+                                        studentFilter === 'missing'
+                                            ? 'bg-red-500/15 text-red-200'
+                                            : 'bg-white/10 text-slate-300 hover:bg-white/15'
+                                    }`}
+                                >
+                                    Не сдали: {missingCount}
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => setStudentFilter(studentFilter === 'graded' ? 'all' : 'graded')}
                                     className={`rounded-full px-3 py-1.5 transition ${
                                         studentFilter === 'graded'
@@ -1409,7 +1294,7 @@ const TaskSubmissionsPage = () => {
                                             : 'bg-white/10 text-slate-300 hover:bg-white/15'
                                     }`}
                                 >
-                                    Без оценки: {groupedSubmissions.length - gradedCount}
+                                    Без оценки: {ungradedCount}
                                 </button>
                                 {latestSubmittedAt && (
                                     <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
@@ -1427,6 +1312,7 @@ const TaskSubmissionsPage = () => {
 
                                 {filteredGroups.map((group) => {
                                     const grade = gradesByStudent.get(group.userId);
+                                    const hasSubmission = Boolean(group.hasSubmission);
                                     const isActive = selectedGroup?.userId === group.userId;
                                     const commentsCount = privateCommentCounts.get(group.userId) || 0;
 
@@ -1456,6 +1342,13 @@ const TaskSubmissionsPage = () => {
                                             </div>
 
                                             <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                                <span className={`rounded-full px-2 py-1 ${
+                                                    hasSubmission
+                                                        ? 'bg-emerald-500/10 text-emerald-200'
+                                                        : 'bg-red-500/10 text-red-200'
+                                                }`}>
+                                                    {hasSubmission ? 'Сдано' : 'Не сдано'}
+                                                </span>
                                                 <span className="rounded-full bg-white/10 px-2 py-1 text-slate-300">
                                                     Версий: {group.submissions.length}
                                                 </span>
@@ -1465,7 +1358,9 @@ const TaskSubmissionsPage = () => {
                                             </div>
 
                                             <p className="mt-3 text-xs text-slate-500">
-                                                Последняя сдача: {formatDateTime(group.latestSubmission.created_at)}
+                                                {hasSubmission
+                                                    ? `Последняя сдача: ${formatDateTime(group.latestSubmission.created_at)}`
+                                                    : 'Файлы не прикреплены'}
                                             </p>
                                         </button>
                                     );
@@ -1490,8 +1385,14 @@ const TaskSubmissionsPage = () => {
                                                 <h2 className="text-2xl font-semibold text-white">{selectedGroup.user?.name || 'Студент'}</h2>
                                                 <p className="text-slate-400">{selectedGroup.user?.email || 'Почта не указана'}</p>
                                                 <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                                                    <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
-                                                        Последняя версия: {formatDateTime(selectedGroup.latestSubmission.created_at)}
+                                                    <span className={`rounded-full px-3 py-1.5 ${
+                                                        selectedGroup.hasSubmission
+                                                            ? 'bg-emerald-500/10 text-emerald-200'
+                                                            : 'bg-red-500/10 text-red-200'
+                                                    }`}>
+                                                        {selectedGroup.hasSubmission
+                                                            ? `Сдано: ${formatDateTime(selectedGroup.latestSubmission.created_at)}`
+                                                            : 'Работа не сдана'}
                                                     </span>
                                                     <span className="rounded-full bg-white/10 px-3 py-1.5 text-slate-300">
                                                         Всего версий: {selectedGroup.submissions.length}
@@ -1624,7 +1525,9 @@ const TaskSubmissionsPage = () => {
                                         <div>
                                             <h2 className="text-xl font-semibold text-white">Версии работы</h2>
                                             <p className="mt-2 text-sm text-slate-500">
-                                                Каждая версия открывается на отдельной странице предпросмотра. Последняя отправка уже наверху.
+                                                {selectedGroup.hasSubmission
+                                                    ? 'Каждая версия открывается на отдельной странице предпросмотра. Последняя отправка уже наверху.'
+                                                    : 'Студент пока не прикреплял файл, но оценку преподавателя можно поставить вручную.'}
                                             </p>
                                         </div>
                                         <span className="rounded-full bg-white/10 px-3 py-1 text-sm text-slate-300">
@@ -1679,104 +1582,28 @@ const TaskSubmissionsPage = () => {
                                     </div>
                                 </section>
 
-                                <section className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
-                                    <div className="flex flex-wrap items-start justify-between gap-4">
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <HiCpuChip className="h-5 w-5 text-purple-300" />
-                                                <h2 className="text-xl font-semibold text-white">Проверка искусственным интеллектом</h2>
-                                            </div>
-                                            <p className="mt-2 text-sm text-slate-500">
-                                                Проверяется последняя версия работы. Критерии задаются в настройках проверки.
-                                            </p>
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-2">
-                                            {canManageReviewers && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => navigate(aiSettingsPath)}
-                                                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
-                                                >
-                                                    <HiCog6Tooth className="h-4 w-4" />
-                                                    Настройки
-                                                </button>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleQueueAiReview(selectedGroup, Boolean(selectedAiReview))}
-                                                disabled={queueingAiReviewFor === selectedGroup.userId || pollingAiReviews}
-                                                className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
-                                            >
-                                                <HiArrowPath className={`h-4 w-4 ${queueingAiReviewFor === selectedGroup.userId || pollingAiReviews ? 'animate-spin' : ''}`} />
-                                                {queueingAiReviewFor === selectedGroup.userId
-                                                    ? 'Запускаем...'
-                                                    : pollingAiReviews ? 'Ждем результат...' : selectedAiReview ? 'Перепроверить' : 'Запустить проверку'}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr),220px]">
-                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className={`rounded-full px-3 py-1 text-xs font-medium ${getAiReviewStatus(selectedAiReview).className}`}>
-                                                    {getAiReviewStatus(selectedAiReview).label}
-                                                </span>
-                                                {selectedAiReview?.model && (
-                                                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-                                                        {formatAiModelLabel(selectedAiReview.model)}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {selectedAiReview?.summary ? (
-                                                <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-slate-300">{selectedAiReview.summary}</p>
-                                            ) : (
-                                                <p className="mt-4 text-sm leading-6 text-slate-500">
-                                                    Проверка еще не запускалась для этой сдачи или результат пока не готов.
-                                                </p>
-                                            )}
-
-                                            {selectedAiReview?.error_message && (
-                                                <p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                                                    {formatAiRuntimeMessage(selectedAiReview.error_message)}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                                            <p className="text-sm text-slate-500">Рекомендация ИИ</p>
-                                            <p className="mt-2 text-2xl font-semibold text-white">
-                                                {formatGradeValue(getAiReviewScore(selectedAiReview), gradeLimit)}
-                                            </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleUseAiFinalGrade(selectedGroup)}
-                                                disabled={getAiReviewScore(selectedAiReview) === null}
-                                                className="mt-4 w-full rounded-xl border border-purple-500/20 bg-purple-500/10 px-4 py-2.5 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                Подставить в итог
-                                            </button>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                <CommentThreadList
-                                    title="Личная переписка"
-                                    description="Эта ветка видна только выбранному студенту и преподавателю."
-                                    comments={selectedStudentComments}
-                                    currentUserId={user?.id}
-                                    onCreate={(body) => handleCreatePrivateComment(selectedGroup, body)}
-                                    onReply={handleReplyToPrivateComment}
-                                    emptyMessage="Личная переписка по этой работе пока не началась."
-                                    createPlaceholder="Напишите комментарий студенту..."
-                                    createLabel="Отправить комментарий"
-                                    variant="private"
-                                    scopeLabel="Только преподаватель и студент"
-                                    composerMode="toggle"
-                                    composerPosition="bottom"
-                                    composerTriggerLabel="Добавить комментарий"
-                                />
+                                {selectedGroup.hasSubmission ? (
+                                    <CommentThreadList
+                                        title="Личная переписка"
+                                        description="Эта ветка видна только выбранному студенту и преподавателю."
+                                        comments={selectedStudentComments}
+                                        currentUserId={user?.id}
+                                        onCreate={(body) => handleCreatePrivateComment(selectedGroup, body)}
+                                        onReply={handleReplyToPrivateComment}
+                                        emptyMessage="Личная переписка по этой работе пока не началась."
+                                        createPlaceholder="Напишите комментарий студенту..."
+                                        createLabel="Отправить комментарий"
+                                        variant="private"
+                                        scopeLabel="Только преподаватель и студент"
+                                        composerMode="toggle"
+                                        composerPosition="bottom"
+                                        composerTriggerLabel="Добавить комментарий"
+                                    />
+                                ) : (
+                                    <section className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-500 md:p-6">
+                                        Личная переписка появится после того, как студент прикрепит файл. Оценку можно поставить уже сейчас.
+                                    </section>
+                                )}
                             </div>
                         )}
                     </div>

@@ -40,6 +40,13 @@ const Folder = ({ color = '#5227FF', size = 1, items = [], className = '' }) => 
         }
     };
 
+    const handleKeyDown = (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleClick();
+        }
+    };
+
     const handlePaperMouseMove = (e, index) => {
         if (!open) return;
         const rect = e.currentTarget.getBoundingClientRect();
@@ -82,6 +89,10 @@ const Folder = ({ color = '#5227FF', size = 1, items = [], className = '' }) => 
     return (
         <div style={scaleStyle} className={className}>
             <div
+                role="button"
+                tabIndex={0}
+                aria-label={open ? 'Закрыть папку' : 'Открыть папку'}
+                aria-pressed={open}
                 className={`group relative transition-all duration-200 ease-in cursor-pointer ${
                     !open ? 'hover:-translate-y-2' : ''
                 }`}
@@ -90,6 +101,7 @@ const Folder = ({ color = '#5227FF', size = 1, items = [], className = '' }) => 
                     transform: open ? 'translateY(-8px)' : undefined
                 }}
                 onClick={handleClick}
+                onKeyDown={handleKeyDown}
             >
                 <div
                     className="relative w-[100px] h-[80px] rounded-tl-0 rounded-tr-[10px] rounded-br-[10px] rounded-bl-[10px]"

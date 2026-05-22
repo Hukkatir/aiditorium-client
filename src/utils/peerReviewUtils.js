@@ -93,7 +93,7 @@ export const generatePeerReviewAssignments = ({
         return [];
     }
 
-    const reviewsPerStudent = Math.max(1, Number(settings.reviewsPerStudent) || 1);
+    const reviewsPerStudent = Math.max(1, Math.floor(Number(settings.reviewsPerStudent) || 1));
     const assignments = [];
 
     reviewers.forEach((reviewer, reviewerIndex) => {

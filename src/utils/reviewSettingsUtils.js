@@ -71,7 +71,7 @@ export const normalizePeerReviewSettings = (settings = {}) => ({
     enabled: true,
     mode: settings.mode === 'open' ? 'open' : 'blind',
     reviewsPerStudent: Number.isFinite(Number(settings.reviewsPerStudent ?? settings.reviews_per_student))
-        ? Math.max(1, Number(settings.reviewsPerStudent ?? settings.reviews_per_student))
+        ? Math.max(1, Math.floor(Number(settings.reviewsPerStudent ?? settings.reviews_per_student)))
         : DEFAULT_PEER_REVIEW_SETTINGS.reviewsPerStudent,
     allowScore: Boolean(settings.allowScore ?? settings.allow_score)
 });

@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     HiArrowLeft,
+    HiArrowPath,
+    HiDocumentText,
     HiPlus,
     HiSparkles,
     HiTrash
@@ -12,12 +14,25 @@ import { aiReviewService } from '../services/aiReviewService';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
 import { taskService } from '../services/taskService';
+import { extractCollection } from '../utils/apiUtils';
+import { getDisplayFileName } from '../utils/fileUtils';
+import {
+    formatGradeValue,
+    getAiReviewScore,
+    getLatestAiReviewByStudent
+} from '../utils/gradeReviewUtils';
 import {
     DEFAULT_AI_MODEL_KEY,
     DEFAULT_AI_MODEL_OPTIONS,
     DEFAULT_AI_RUBRIC,
     DEFAULT_AI_SUPPORTED_FORMATS
 } from '../utils/reviewSettingsUtils';
+import {
+    formatAiRuntimeMessage,
+    getAiReviewStatus,
+    getFriendlyAiErrorMessage,
+    isAiReviewActive
+} from '../utils/aiReviewPresentation';
 import { buildTaskPath, buildTaskPeerReviewSettingsPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
 
 const getTaskMaxScore = (task) => {
@@ -70,6 +85,20 @@ const normalizeProfile = (profile = {}, maxScore = 100) => {
 
 const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
 
+const formatDateTime = (dateString) => {
+    if (!dateString) {
+        return '—';
+    }
+
+    return new Date(dateString).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
 const TaskReviewSettingsPage = () => {
     const { courseIdOrSlug, disciplineIdOrSlug, taskNumber } = useParams();
     const navigate = useNavigate();
@@ -79,9 +108,14 @@ const TaskReviewSettingsPage = () => {
     const [course, setCourse] = useState(null);
     const [discipline, setDiscipline] = useState(null);
     const [profileForm, setProfileForm] = useState(() => normalizeProfile({}, 100));
+    const [submissions, setSubmissions] = useState([]);
+    const [aiReviews, setAiReviews] = useState([]);
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(true);
     const [savingProfile, setSavingProfile] = useState(false);
+    const [queueingAiReviewFor, setQueueingAiReviewFor] = useState(null);
+    const [queueingAllAiReviews, setQueueingAllAiReviews] = useState(false);
+    const [pollingAiReviews, setPollingAiReviews] = useState(false);
     const [accessDenied, setAccessDenied] = useState(false);
     const [availableModels, setAvailableModels] = useState(DEFAULT_AI_MODEL_OPTIONS);
 
@@ -102,6 +136,54 @@ const TaskReviewSettingsPage = () => {
     );
     const remainingPoints = maxScore - totalPoints;
 
+    const groupedSubmissions = useMemo(() => {
+        const groups = new Map();
+        const sortedSubmissions = [...submissions].sort(
+            (left, right) => new Date(right.created_at) - new Date(left.created_at)
+        );
+
+        sortedSubmissions.forEach((submission) => {
+            const userId = Number(submission.user_id);
+            const existingGroup = groups.get(userId);
+
+            if (existingGroup) {
+                existingGroup.submissions.push(submission);
+                return;
+            }
+
+            groups.set(userId, {
+                userId,
+                user: submission.user,
+                latestSubmission: submission,
+                submissions: [submission]
+            });
+        });
+
+        return Array.from(groups.values());
+    }, [submissions]);
+
+    const latestAiReviewByStudent = useMemo(
+        () => getLatestAiReviewByStudent(aiReviews, groupedSubmissions),
+        [aiReviews, groupedSubmissions]
+    );
+
+    const aiReviewStats = useMemo(() => {
+        const stats = { completed: 0, active: 0, failed: 0 };
+
+        aiReviews.forEach((review) => {
+            const status = String(review?.status?.value || review?.status || '').toLowerCase();
+            if (status === 'completed') {
+                stats.completed += 1;
+            } else if (status === 'failed') {
+                stats.failed += 1;
+            } else if (status) {
+                stats.active += 1;
+            }
+        });
+
+        return stats;
+    }, [aiReviews]);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         setAccessDenied(false);
@@ -111,7 +193,7 @@ const TaskReviewSettingsPage = () => {
             const taskObject = taskData.task || taskData;
             const taskMaxScore = getTaskMaxScore(taskObject);
 
-            const [courseData, disciplineData, profileData] = await Promise.all([
+            const [courseData, disciplineData, profileData, submissionsData, reviewsData] = await Promise.all([
                 courseService.getCourse(taskObject.course_id),
                 disciplineService.getDiscipline(taskObject.course_id, taskObject.discipline_id),
                 aiReviewService.getReviewProfile(taskObject.id).catch((error) => {
@@ -121,6 +203,20 @@ const TaskReviewSettingsPage = () => {
                     }
 
                     throw error;
+                }),
+                taskService.getTaskSubmissions(taskObject.id, 100).catch((error) => {
+                    if (error.response?.status === 403) {
+                        setAccessDenied(true);
+                    }
+
+                    return { submissions: { data: [] } };
+                }),
+                aiReviewService.getTaskAiReviews(taskObject.id, 100).catch((error) => {
+                    if (error.response?.status === 403) {
+                        setAccessDenied(true);
+                    }
+
+                    return { reviews: { data: [] } };
                 })
             ]);
 
@@ -128,6 +224,8 @@ const TaskReviewSettingsPage = () => {
             setCourse(courseData.course || courseData);
             setDiscipline(disciplineData.discipline || disciplineData);
             setProfileForm(normalizeProfile(profileData.profile, taskMaxScore));
+            setSubmissions(extractCollection(submissionsData, 'submissions'));
+            setAiReviews(extractCollection(reviewsData, 'reviews'));
             setAvailableModels(
                 Array.isArray(profileData.available_models) && profileData.available_models.length
                     ? profileData.available_models
@@ -144,6 +242,88 @@ const TaskReviewSettingsPage = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const pollAiReviewsUntilSettled = useCallback(async (maxAttempts = 240) => {
+        if (!task?.id) {
+            return;
+        }
+
+        setPollingAiReviews(true);
+
+        try {
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                const reviewsData = await aiReviewService.getTaskAiReviews(task.id, 100);
+                const nextReviews = extractCollection(reviewsData, 'reviews');
+                setAiReviews(nextReviews);
+
+                if (!nextReviews.some(isAiReviewActive)) {
+                    break;
+                }
+
+                await new Promise((resolve) => {
+                    window.setTimeout(resolve, 3000);
+                });
+            }
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiMessage(error) || 'Не удалось обновить результаты проверки искусственным интеллектом');
+        } finally {
+            setPollingAiReviews(false);
+        }
+    }, [showToast, task?.id]);
+
+    const handleQueueAiReview = async (group, forceRecheck = false) => {
+        if (!task?.id || !group?.latestSubmission?.id) {
+            return;
+        }
+
+        setQueueingAiReviewFor(group.userId);
+
+        try {
+            await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
+            showToast('success', forceRecheck ? 'Повторная проверка искусственным интеллектом запущена' : 'Проверка искусственным интеллектом запущена');
+            await pollAiReviewsUntilSettled();
+        } catch (error) {
+            console.error(error);
+            showToast('error', getFriendlyAiErrorMessage(error) || 'Не удалось запустить проверку искусственным интеллектом', 6000);
+        } finally {
+            setQueueingAiReviewFor(null);
+        }
+    };
+
+    const handleQueueAllAiReviews = async () => {
+        if (!task?.id || !groupedSubmissions.length) {
+            return;
+        }
+
+        setQueueingAllAiReviews(true);
+        let successCount = 0;
+        let failedMessage = '';
+
+        try {
+            for (const group of groupedSubmissions) {
+                try {
+                    const hasReview = latestAiReviewByStudent.has(group.userId);
+                    await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, hasReview);
+                    successCount += 1;
+                } catch (error) {
+                    console.error(error);
+                    failedMessage = failedMessage || getFriendlyAiErrorMessage(error) || 'Не все работы удалось отправить на проверку.';
+                }
+            }
+
+            if (successCount > 0) {
+                showToast('success', `Проверка искусственным интеллектом запущена для работ: ${successCount}`);
+                await pollAiReviewsUntilSettled();
+            }
+
+            if (failedMessage) {
+                showToast('error', failedMessage, 7000);
+            }
+        } finally {
+            setQueueingAllAiReviews(false);
+        }
+    };
 
     const updateCriterion = (index, field, value) => {
         setProfileForm((previous) => ({
@@ -467,6 +647,109 @@ const TaskReviewSettingsPage = () => {
                                 {savingProfile ? 'Сохраняем...' : 'Сохранить настройки'}
                             </button>
                         </div>
+                    </section>
+                )}
+
+                {!accessDenied && (
+                    <section className="rounded-2xl border border-white/10 bg-[#16161C] p-5 md:p-6">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <HiSparkles className="h-5 w-5 text-purple-300" />
+                                    <h2 className="text-xl font-semibold text-white">Результаты проверки искусственным интеллектом</h2>
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-slate-500">
+                                    Здесь собраны статусы и результаты AI-проверки по последним сданным работам студентов.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleQueueAllAiReviews}
+                                disabled={queueingAllAiReviews || pollingAiReviews || groupedSubmissions.length === 0}
+                                className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews || pollingAiReviews ? 'animate-spin' : ''}`} />
+                                {queueingAllAiReviews
+                                    ? 'Запускаем...'
+                                    : pollingAiReviews ? 'Ждем результаты...' : 'Проверить все работы'}
+                            </button>
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-3 gap-2 text-xs sm:max-w-xl">
+                            <div className="rounded-xl bg-white/[0.04] p-3">
+                                <p className="text-slate-500">Готово</p>
+                                <p className="mt-1 text-lg font-semibold text-emerald-200">{aiReviewStats.completed}</p>
+                            </div>
+                            <div className="rounded-xl bg-white/[0.04] p-3">
+                                <p className="text-slate-500">В работе</p>
+                                <p className="mt-1 text-lg font-semibold text-purple-200">{aiReviewStats.active}</p>
+                            </div>
+                            <div className="rounded-xl bg-white/[0.04] p-3">
+                                <p className="text-slate-500">Ошибки</p>
+                                <p className="mt-1 text-lg font-semibold text-red-200">{aiReviewStats.failed}</p>
+                            </div>
+                        </div>
+
+                        {groupedSubmissions.length === 0 ? (
+                            <div className="mt-5 rounded-2xl border border-dashed border-white/10 px-6 py-12 text-center text-sm text-slate-500">
+                                Пока нет сданных работ для проверки.
+                            </div>
+                        ) : (
+                            <div className="mt-5 space-y-3">
+                                {groupedSubmissions.map((group) => {
+                                    const review = latestAiReviewByStudent.get(group.userId);
+                                    const status = getAiReviewStatus(review);
+                                    const isQueueing = queueingAiReviewFor === group.userId;
+
+                                    return (
+                                        <div key={group.userId} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-medium text-white">{group.user?.name || 'Студент'}</p>
+                                                    <p className="truncate text-sm text-slate-500">{group.user?.email || 'Почта не указана'}</p>
+                                                    <div className="mt-3 flex min-w-0 items-center gap-2 text-xs text-slate-500">
+                                                        <HiDocumentText className="h-4 w-4 shrink-0" />
+                                                        <span className="truncate">{getDisplayFileName(group.latestSubmission)}</span>
+                                                        <span className="shrink-0">· {formatDateTime(group.latestSubmission.created_at)}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${status.className}`}>
+                                                        {status.label}
+                                                    </span>
+                                                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                                                        {formatGradeValue(getAiReviewScore(review), maxScore)}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleQueueAiReview(group, Boolean(review))}
+                                                        disabled={isQueueing || pollingAiReviews}
+                                                        className="inline-flex items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        {isQueueing && <HiArrowPath className="h-4 w-4 animate-spin" />}
+                                                        {isQueueing ? 'Запускаем...' : review ? 'Перепроверить' : 'Запустить'}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {review?.summary && (
+                                                <p className="mt-4 whitespace-pre-wrap rounded-xl bg-black/20 px-3 py-2 text-sm leading-6 text-slate-300">
+                                                    {review.summary}
+                                                </p>
+                                            )}
+
+                                            {review?.error_message && (
+                                                <p className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm leading-6 text-red-200">
+                                                    {formatAiRuntimeMessage(review.error_message)}
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </section>
                 )}
             </div>

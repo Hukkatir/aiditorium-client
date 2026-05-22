@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import React from 'react';
+import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
     HiAcademicCap,
@@ -15,18 +15,41 @@ import {
 } from 'react-icons/hi2';
 import LetterGlitch from '../components/LetterGlitch';
 import Folder from '../components/Folder';
-import Navbar from "../components/layout/Navbar";
 
+const featureCards = [
+    {
+        title: 'Ручная проверка',
+        description: 'Классический метод для работ, требующих личного внимания и экспертного взгляда преподавателя.',
+        icon: HiPencil,
+        iconClassName: 'bg-blue-500/15 text-blue-200 border-blue-400/20',
+        activeClassName: 'hover:border-blue-400/35',
+        items: ['Развернутые комментарии', 'Индивидуальный подход', 'Личный контакт']
+    },
+    {
+        title: 'Автоматическая проверка',
+        description: 'Искусственный интеллект анализирует и оценивает работы студентов по заданным критериям.',
+        icon: HiSparkles,
+        iconClassName: 'bg-purple-500/15 text-purple-100 border-purple-400/25',
+        activeClassName: 'border-purple-500/25 bg-purple-500/[0.07] hover:border-purple-400/45',
+        items: ['AI-анализ текста', 'Проверка по критериям', 'Быстрая обратная связь']
+    },
+    {
+        title: 'Взаимная проверка',
+        description: 'Студенты учатся анализировать решения друг друга, а преподаватель видит результаты проверки.',
+        icon: HiUserGroup,
+        iconClassName: 'bg-pink-500/15 text-pink-100 border-pink-400/20',
+        activeClassName: 'hover:border-pink-400/35',
+        items: ['Распределение работ', 'Слепой режим', 'Оценка и комментарий']
+    }
+];
 
 const Landing = () => {
-    const { scrollY } = useScroll();
-
     return (
         <div className="relative min-h-screen bg-dark overflow-hidden">
             {/* LetterGlitch фон */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <LetterGlitch
-                    glitchSpeed={50}
+                    glitchSpeed={120}
                     centerVignette={false}
                     outerVignette={true}
                     smooth={true}
@@ -52,8 +75,12 @@ const Landing = () => {
                         {/* Кнопки */}
                         <div className="flex items-center gap-4">
 
-                            <Link to="/auth" className="px-4 py-2 bg-gradient-primary rounded-lg text-white hover:shadow-lg hover:shadow-primary-start/25 transition">
-                                <HiMiniUserCircle  className="w-6 h-6 text-white" />
+                            <Link
+                                to="/auth"
+                                className="inline-flex items-center gap-2 rounded-xl border border-purple-400/20 bg-gradient-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/15 transition duration-300 hover:-translate-y-0.5 hover:shadow-purple-500/25"
+                            >
+                                <HiMiniUserCircle className="h-5 w-5 text-white" />
+                                Войти
                             </Link>
                         </div>
                     </div>
@@ -101,7 +128,12 @@ const Landing = () => {
                         >
                             <div className="relative">
                                 {/* Внешнее свечение */}
-                                <div className="absolute inset-0 bg-gradient-primary rounded-full blur-3xl opacity-30 animate-pulse" />
+                                <div className="absolute inset-0 rounded-full bg-gradient-primary opacity-20 blur-3xl" />
+
+                                <div className="absolute -left-24 top-12 z-20 flex items-center gap-3 rounded-2xl border border-purple-400/20 bg-dark/80 px-4 py-3 text-sm font-medium text-purple-100 shadow-xl shadow-purple-500/10 backdrop-blur-md">
+                                    <span>Нажмите на папку</span>
+                                    <HiArrowRight className="h-5 w-5 animate-pulse text-purple-200" />
+                                </div>
 
                                 {/* Папка с контентом */}
                                 <Folder
@@ -150,119 +182,37 @@ const Landing = () => {
                     </motion.div>
 
 
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {/* Ручная проверка */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6 }}
-                            viewport={{ once: true }}
-                            whileHover={{ y: -10 }}
-                            className="group relative bg-white/[0.03] backdrop-blur-xl rounded-3xl p-8 border border-white/10 hover:border-blue-500/50 hover:bg-white/[0.05] transition-all duration-500 shadow-2xl overflow-hidden"
-                        >
-                            {/* Фоновое свечение при наведении */}
-                            <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-blue-500/10 blur-[50px] group-hover:bg-blue-500/20 transition-all duration-500 rounded-full" />
+                    <div className="grid gap-5 md:grid-cols-3">
+                        {featureCards.map((feature) => {
+                            const Icon = feature.icon;
 
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br  from-blue-500 to-blue-600 flex items-center justify-center mb-8 shadow-lg shadow-blue-500/20 transform group-hover:rotate-6 group-hover:scale-110 transition-transform duration-500">
-                                <HiPencil className="w-8 h-8 text-white" />
-                            </div>
+                            return (
+                                <article
+                                    key={feature.title}
+                                    className={`group rounded-3xl border border-white/10 bg-[#1A1E2B]/80 p-6 shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.045] ${feature.activeClassName}`}
+                                >
+                                    <div className={`mb-7 flex h-14 w-14 items-center justify-center rounded-2xl border ${feature.iconClassName}`}>
+                                        <Icon className="h-7 w-7" />
+                                    </div>
 
-                            <h3 className="text-2xl font-bold text-white mb-4 tracking-tight">Ручная проверка</h3>
-                            <p className="text-gray-400 mb-8 leading-relaxed min-h-[72px]">
-                                Классический метод для работ, требующих личного внимания и экспертного взгляда преподавателя.
-                            </p>
+                                    <h3 className="text-2xl font-bold text-white">{feature.title}</h3>
+                                    <p className="mt-4 min-h-[72px] text-sm leading-6 text-gray-400">
+                                        {feature.description}
+                                    </p>
 
-                            <ul className="space-y-4">
-                                {[
-                                    'Развернутые комментарии',
-                                    'Индивидуальный подход',
-                                    'Личный контакт'
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
-                                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-                                            <HiCheckCircle className="w-4 h-4 text-blue-400" />
-                                        </div>
-                                        <span>{item}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </motion.div>
-
-                        {/* Автоматическая проверка (AI) - Выделена чуть сильнее */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.1, delay: 0.05 }}
-                            viewport={{ once: true }}
-                            whileHover={{ y: -10 }}
-                            className="group relative bg-white/[0.06] backdrop-blur-xl rounded-3xl p-8 border border-purple-500/30 hover:border-purple-500/60 transition-all duration-500 shadow-2xl shadow-purple-500/10 overflow-hidden"
-                        >
-
-
-                            {/* Фоновое свечение при наведении */}
-                            <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-purple-500/10 blur-[50px] group-hover:bg-purple-500/30 transition-all duration-500 rounded-full" />
-
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mb-8 shadow-lg shadow-purple-500/30 transform group-hover:-rotate-6 group-hover:scale-110 transition-transform duration-500">
-                                <HiSparkles className="w-8 h-8 text-white" />
-                            </div>
-
-                            <h3 className="text-2xl font-bold text-white mb-4 tracking-tight">Автоматическая проверка</h3>
-                            <p className="text-gray-400 mb-8 leading-relaxed min-h-[72px]">
-                                Искусственный интеллект анализирует и оценивает работы студентов по любым предметам.
-                            </p>
-
-                            <ul className="space-y-4">
-                                {[
-                                    'AI-анализ текста',
-                                    'Проверка по критериям',
-                                    'Мгновенная обратная связь'
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
-                                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
-                                            <HiCheckCircle className="w-4 h-4 text-purple-400" />
-                                        </div>
-                                        <span>{item}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </motion.div>
-
-                        {/* Взаимная проверка */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.2 }}
-                            viewport={{ once: true }}
-                            whileHover={{ y: -10 }}
-                            className="group relative bg-white/[0.03] backdrop-blur-xl rounded-3xl p-8 border border-white/10 hover:border-pink-500/50 hover:bg-white/[0.05] transition-all duration-500 shadow-2xl overflow-hidden"
-                        >
-                            {/* Фоновое свечение при наведении */}
-                            <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-pink-500/10 blur-[50px] group-hover:bg-pink-500/20 transition-all duration-500 rounded-full" />
-
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 flex items-center justify-center mb-8 shadow-lg shadow-pink-500/20 transform group-hover:rotate-6 group-hover:scale-110 transition-transform duration-500">
-                                <HiUserGroup className="w-8 h-8 text-white" />
-                            </div>
-
-                            <h3 className="text-2xl font-bold text-white mb-4 tracking-tight">Взаимная проверка</h3>
-                            <p className="text-gray-400 mb-8 leading-relaxed min-h-[72px]">
-                                Студенты учатся, проверяя других, а искусственный интеллект анализирует качество проверки.
-                            </p>
-
-                            <ul className="space-y-4">
-                                {[
-                                    'Распределение работ',
-                                    'Двойная слепая проверка',
-                                    'AI-валидация оценок'
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
-                                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-pink-500/10 flex items-center justify-center border border-pink-500/20">
-                                            <HiCheckCircle className="w-4 h-4 text-pink-400" />
-                                        </div>
-                                        <span>{item}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </motion.div>
+                                    <ul className="mt-7 space-y-3">
+                                        {feature.items.map((item) => (
+                                            <li key={item} className="flex items-center gap-3 text-sm text-gray-300">
+                                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-purple-400/20 bg-purple-500/10 text-purple-200">
+                                                    <HiCheckCircle className="h-4 w-4" />
+                                                </span>
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </article>
+                            );
+                        })}
                     </div>
                 </div>
             </section>
