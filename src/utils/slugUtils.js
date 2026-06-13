@@ -1,4 +1,4 @@
-export const SLUG_LETTERS_ERROR = 'slug должен содержать хотя бы одну букву';
+export const SLUG_LETTERS_ERROR = 'Короткий URL должен содержать хотя бы одну букву';
 
 export const slugifyPreview = (value) => {
     if (!value) return '';

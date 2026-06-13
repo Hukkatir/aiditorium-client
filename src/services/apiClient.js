@@ -25,7 +25,7 @@ const refreshToken = async () => {
     const token = getStoredToken();
 
     if (!token) {
-        throw new Error('Missing auth token');
+        throw new Error('Сессия истекла. Войдите снова.');
     }
 
     const response = await refreshClient.post('/refresh', null, {
@@ -37,7 +37,7 @@ const refreshToken = async () => {
     const nextToken = response.data?.authorization?.token;
 
     if (!nextToken) {
-        throw new Error('Missing refreshed token');
+        throw new Error('Сессия истекла. Войдите снова.');
     }
 
     if (response.data?.user) {

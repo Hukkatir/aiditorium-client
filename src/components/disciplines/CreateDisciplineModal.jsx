@@ -1,9 +1,10 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiXMark } from 'react-icons/hi2';
 import { disciplineService } from '../../services/disciplineService';
 import { useToast } from '../../context/ToastContext';
 import { getSlugValidationError, slugifyPreview } from '../../utils/slugUtils';
+import { getApiErrorMessage, getRawApiMessage } from '../../utils/apiUtils';
 
 const CreateDisciplineModal = ({ isOpen, onClose, onSuccess, courseId }) => {
     const { showToast } = useToast();
@@ -55,8 +56,8 @@ const CreateDisciplineModal = ({ isOpen, onClose, onSuccess, courseId }) => {
             onClose();
             setFormData({ name: '', description: '', hours: 0, slug: '' });
         } catch (error) {
-            const message = error.response?.data?.error || error.response?.data?.message || 'Ошибка создания дисциплины';
-            if (message.includes('slug')) {
+            const message = getApiErrorMessage(error, 'Ошибка создания дисциплины');
+            if (/slug|коротк/i.test(getRawApiMessage(error) || message)) {
                 setErrors((prev) => ({ ...prev, slug: message }));
             }
             showToast('error', message);
@@ -107,9 +108,9 @@ const CreateDisciplineModal = ({ isOpen, onClose, onSuccess, courseId }) => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Slug</label>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Короткий URL</label>
                             <input type="text" name="slug" value={formData.slug} onChange={handleChange} placeholder="Например: ремонт кухни" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-purple-500 outline-none" />
-                            <p className="text-xs text-gray-500 mt-2">Итоговый slug: <span className="text-gray-300">{slugPreview || '—'}</span></p>
+                            <p className="text-xs text-gray-500 mt-2">Итоговый короткий URL: <span className="text-gray-300">{slugPreview || '—'}</span></p>
                             {errors.slug && <p className="text-red-400 text-sm mt-1">{errors.slug}</p>}
                         </div>
 

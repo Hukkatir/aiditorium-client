@@ -14,7 +14,7 @@ import { aiReviewService } from '../services/aiReviewService';
 import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
 import { taskService } from '../services/taskService';
-import { extractCollection } from '../utils/apiUtils';
+import { extractCollection, getApiErrorMessage } from '../utils/apiUtils';
 import { getDisplayFileName } from '../utils/fileUtils';
 import {
     formatGradeValue,
@@ -83,8 +83,6 @@ const normalizeProfile = (profile = {}, maxScore = 100) => {
     };
 };
 
-const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
-
 const formatDateTime = (dateString) => {
     if (!dateString) {
         return '—';
@@ -135,6 +133,12 @@ const TaskReviewSettingsPage = () => {
         [profileForm.rubric]
     );
     const remainingPoints = maxScore - totalPoints;
+    const supportedFormatsLabel = useMemo(() => (
+        (profileForm.supported_formats || [])
+            .map((format) => String(format || '').trim().toUpperCase())
+            .filter(Boolean)
+            .join(', ') || 'не указаны'
+    ), [profileForm.supported_formats]);
 
     const groupedSubmissions = useMemo(() => {
         const groups = new Map();
@@ -183,6 +187,12 @@ const TaskReviewSettingsPage = () => {
 
         return stats;
     }, [aiReviews]);
+
+    const selectedAiModelLabel = useMemo(() => (
+        availableModels.find((model) => model.key === profileForm.ai_model_key)?.label
+        || profileForm.ai_model_key
+        || DEFAULT_AI_MODEL_KEY
+    ), [availableModels, profileForm.ai_model_key]);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -233,7 +243,7 @@ const TaskReviewSettingsPage = () => {
             );
         } catch (error) {
             console.error(error);
-            showToast('error', getApiMessage(error) || 'Не удалось загрузить настройки проверки искусственным интеллектом');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить настройки проверки искусственным интеллектом'));
         } finally {
             setLoading(false);
         }
@@ -266,7 +276,7 @@ const TaskReviewSettingsPage = () => {
             }
         } catch (error) {
             console.error(error);
-            showToast('error', getApiMessage(error) || 'Не удалось обновить результаты проверки искусственным интеллектом');
+            showToast('error', getApiErrorMessage(error, 'Не удалось обновить результаты проверки искусственным интеллектом'));
         } finally {
             setPollingAiReviews(false);
         }
@@ -285,7 +295,7 @@ const TaskReviewSettingsPage = () => {
             await pollAiReviewsUntilSettled();
         } catch (error) {
             console.error(error);
-            showToast('error', getFriendlyAiErrorMessage(error) || 'Не удалось запустить проверку искусственным интеллектом', 6000);
+            showToast('error', getFriendlyAiErrorMessage(error, selectedAiModelLabel) || 'Не удалось запустить проверку искусственным интеллектом', 6000);
         } finally {
             setQueueingAiReviewFor(null);
         }
@@ -308,7 +318,7 @@ const TaskReviewSettingsPage = () => {
                     successCount += 1;
                 } catch (error) {
                     console.error(error);
-                    failedMessage = failedMessage || getFriendlyAiErrorMessage(error) || 'Не все работы удалось отправить на проверку.';
+                    failedMessage = failedMessage || getFriendlyAiErrorMessage(error, selectedAiModelLabel) || 'Не все работы удалось отправить на проверку.';
                 }
             }
 
@@ -424,7 +434,7 @@ const TaskReviewSettingsPage = () => {
             showToast('success', 'Настройки проверки искусственным интеллектом сохранены');
         } catch (error) {
             console.error(error);
-            showToast('error', getApiMessage(error) || 'Не удалось сохранить настройки проверки искусственным интеллектом');
+            showToast('error', getApiErrorMessage(error, 'Не удалось сохранить настройки проверки искусственным интеллектом'));
         } finally {
             setSavingProfile(false);
         }
@@ -663,17 +673,22 @@ const TaskReviewSettingsPage = () => {
                                 </p>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={handleQueueAllAiReviews}
-                                disabled={queueingAllAiReviews || pollingAiReviews || groupedSubmissions.length === 0}
-                                className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews || pollingAiReviews ? 'animate-spin' : ''}`} />
-                                {queueingAllAiReviews
-                                    ? 'Запускаем...'
-                                    : pollingAiReviews ? 'Ждем результаты...' : 'Проверить все работы'}
-                            </button>
+                            <div className="flex flex-col items-start gap-2 sm:items-end">
+                                <button
+                                    type="button"
+                                    onClick={handleQueueAllAiReviews}
+                                    disabled={queueingAllAiReviews || pollingAiReviews || groupedSubmissions.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <HiArrowPath className={`h-4 w-4 ${queueingAllAiReviews || pollingAiReviews ? 'animate-spin' : ''}`} />
+                                    {queueingAllAiReviews
+                                        ? 'Запускаем...'
+                                        : pollingAiReviews ? 'Ждем результаты...' : 'Проверить все работы'}
+                                </button>
+                                <p className="max-w-md text-xs leading-5 text-slate-500 sm:text-right">
+                                    Доступные типы файлов для проверки: {supportedFormatsLabel}
+                                </p>
+                            </div>
                         </div>
 
                         <div className="mt-5 grid grid-cols-3 gap-2 text-xs sm:max-w-xl">
@@ -742,7 +757,7 @@ const TaskReviewSettingsPage = () => {
 
                                             {review?.error_message && (
                                                 <p className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm leading-6 text-red-200">
-                                                    {formatAiRuntimeMessage(review.error_message)}
+                                                    {formatAiRuntimeMessage(review.error_message, review.model || review.ai_model_key || selectedAiModelLabel)}
                                                 </p>
                                             )}
                                         </div>

@@ -1,3 +1,5 @@
+import { translateErrorMessage } from './apiUtils';
+
 export const TASK_MATERIALS_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 export const REGULAR_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -22,7 +24,9 @@ export const getFirstFileValidationError = (serverErrors = {}) => {
             key.startsWith('files.')
         ) && Array.isArray(messages) && messages[0]);
 
-    return fileErrorEntry?.[1]?.[0] || '';
+    return fileErrorEntry?.[1]?.[0]
+        ? translateErrorMessage(fileErrorEntry[1][0], 'Не удалось загрузить файл. Проверьте размер и формат файла.')
+        : '';
 };
 
 export const formatFileSize = (bytes = 0) => {

@@ -35,7 +35,7 @@ import { disciplineService } from '../services/disciplineService';
 import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
-import { extractCollection } from '../utils/apiUtils';
+import { extractCollection, getApiErrorMessage } from '../utils/apiUtils';
 import { getTaskMaterials } from '../utils/fileUtils';
 import { buildCoursePath, buildDisciplinePath } from '../utils/routeUtils';
 import {
@@ -218,7 +218,7 @@ const CourseDetailPage = () => {
         } catch (error) {
             console.error(error);
             setCourse(null);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить данные курса');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить данные курса'));
         } finally {
             setLoading(false);
         }
@@ -272,7 +272,7 @@ const CourseDetailPage = () => {
             showToast('success', successMessage);
             await fetchData();
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка');
+            showToast('error', getApiErrorMessage(error, 'Ошибка'));
         } finally {
             closeModal(false);
         }
@@ -301,7 +301,7 @@ const CourseDetailPage = () => {
             applyCoursePatch(response);
             showToast('success', 'Код приглашения обновлён');
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка');
+            showToast('error', getApiErrorMessage(error, 'Ошибка'));
         }
     };
 
@@ -315,7 +315,7 @@ const CourseDetailPage = () => {
             applyCoursePatch(response);
             showToast('success', course.invite_code_teacher ? 'Код для учителя обновлён' : 'Код для учителя создан');
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка');
+            showToast('error', getApiErrorMessage(error, 'Ошибка'));
         }
     };
 
@@ -329,7 +329,7 @@ const CourseDetailPage = () => {
             showToast('success', 'Курс полностью удалён');
             navigate('/courses');
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления');
+            showToast('error', getApiErrorMessage(error, 'Ошибка удаления'));
         } finally {
             setShowDeleteConfirm(false);
         }
@@ -346,7 +346,7 @@ const CourseDetailPage = () => {
             setSelectedDiscipline(null);
             await fetchData();
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления дисциплины');
+            showToast('error', getApiErrorMessage(error, 'Ошибка удаления дисциплины'));
         } finally {
             setShowDeleteDisciplineConfirm(false);
         }
@@ -363,7 +363,7 @@ const CourseDetailPage = () => {
             setSelectedTask(null);
             await fetchData();
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления задания');
+            showToast('error', getApiErrorMessage(error, 'Ошибка удаления задания'));
         } finally {
             setShowDeleteTaskConfirm(false);
         }
@@ -379,7 +379,7 @@ const CourseDetailPage = () => {
             setUsers((previous) => previous.filter((item) => item.id !== userToRemove.id));
             showToast('success', `Пользователь ${userToRemove.name} удалён из курса`);
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления');
+            showToast('error', getApiErrorMessage(error, 'Ошибка удаления'));
         } finally {
             setShowRemoveUserConfirm(false);
             setUserToRemove(null);

@@ -20,7 +20,7 @@ import { disciplineService } from '../services/disciplineService';
 import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
-import { extractCollection } from '../utils/apiUtils';
+import { extractCollection, getApiErrorMessage } from '../utils/apiUtils';
 import { getTaskMaterials } from '../utils/fileUtils';
 import { buildCoursePath, buildDisciplinePath } from '../utils/routeUtils';
 import {
@@ -147,7 +147,7 @@ const DisciplineDetailPage = () => {
             console.error(error);
             setDiscipline(null);
             setCourse(null);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить данные дисциплины');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить данные дисциплины'));
         } finally {
             setLoading(false);
         }
@@ -186,7 +186,7 @@ const DisciplineDetailPage = () => {
             showToast('success', 'Дисциплина удалена');
             navigate(buildCoursePath(courseRef));
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления дисциплины');
+            showToast('error', getApiErrorMessage(error, 'Ошибка удаления дисциплины'));
         } finally {
             setShowDeleteDisciplineConfirm(false);
         }
@@ -203,7 +203,7 @@ const DisciplineDetailPage = () => {
             setSelectedTask(null);
             await fetchData();
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления задания');
+            showToast('error', getApiErrorMessage(error, 'Ошибка удаления задания'));
         } finally {
             setShowDeleteTaskConfirm(false);
         }

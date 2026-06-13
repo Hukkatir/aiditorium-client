@@ -25,7 +25,7 @@ import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
-import { extractCollection } from '../utils/apiUtils';
+import { extractCollection, getApiErrorMessage } from '../utils/apiUtils';
 import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { REGULAR_FILE_MAX_BYTES, formatFileSize, getFilesOverSizeLimit, getFirstFileValidationError, getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import { buildDisciplinePath, buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
@@ -177,7 +177,7 @@ const TaskDetailPage = () => {
             setMyGrade(grade);
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить отправленные работы');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить отправленные работы'));
         }
     }, [showToast]);
 
@@ -215,7 +215,7 @@ const TaskDetailPage = () => {
                 setTaskComments([]);
             } else {
                 console.error(error);
-                showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить комментарии');
+                showToast('error', getApiErrorMessage(error, 'Не удалось загрузить комментарии'));
                 setTaskComments([]);
             }
         } finally {
@@ -266,7 +266,7 @@ const TaskDetailPage = () => {
         } catch (error) {
             console.error(error);
             setTask(null);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить задание');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить задание'));
         } finally {
             setLoading(false);
         }
@@ -296,7 +296,7 @@ const TaskDetailPage = () => {
             showToast('success', 'Задание удалено');
             navigate(disciplinePath);
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Ошибка удаления');
+            showToast('error', getApiErrorMessage(error, 'Ошибка удаления'));
         } finally { setShowDeleteConfirm(false); }
     };
 
@@ -313,7 +313,7 @@ const TaskDetailPage = () => {
         try {
             await fileService.downloadFile(file.id, getDisplayFileName(file));
         } catch (error) {
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось скачать файл');
+            showToast('error', getApiErrorMessage(error, 'Не удалось скачать файл'));
         }
     };
 
@@ -337,7 +337,7 @@ const TaskDetailPage = () => {
         } catch (error) {
             console.error(error);
             const firstValidationError = getFirstFileValidationError(error.response?.data?.errors || {});
-            showToast('error', firstValidationError || error.response?.data?.error || error.response?.data?.message || 'Ошибка отправки');
+            showToast('error', firstValidationError || getApiErrorMessage(error, 'Ошибка отправки'));
         } finally { setSubmitting(false); }
     };
 
@@ -350,7 +350,7 @@ const TaskDetailPage = () => {
             await refreshStudentAndComments();
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось убрать файл');
+            showToast('error', getApiErrorMessage(error, 'Не удалось убрать файл'));
         } finally { setRemovingSubmissionId(null); }
     };
 
@@ -368,7 +368,7 @@ const TaskDetailPage = () => {
             showToast('success', 'Комментарий отправлен');
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
+            showToast('error', getApiErrorMessage(error, 'Не удалось отправить комментарий'));
         }
     };
 
@@ -387,7 +387,7 @@ const TaskDetailPage = () => {
             showToast('success', 'Ответ отправлен');
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
+            showToast('error', getApiErrorMessage(error, 'Не удалось отправить ответ'));
         }
     };
 
@@ -409,7 +409,7 @@ const TaskDetailPage = () => {
             showToast('success', 'Личный комментарий отправлен');
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
+            showToast('error', getApiErrorMessage(error, 'Не удалось отправить комментарий'));
         }
     };
 
@@ -429,7 +429,7 @@ const TaskDetailPage = () => {
             showToast('success', 'Ответ отправлен');
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
+            showToast('error', getApiErrorMessage(error, 'Не удалось отправить ответ'));
         }
     };
 

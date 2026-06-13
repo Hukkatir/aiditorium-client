@@ -9,12 +9,11 @@ import {
     HiArrowRight
 } from 'react-icons/hi2';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import { getApiErrorMessage, translateErrorMessage } from '../utils/apiUtils';
 
 const Auth = () => {
     const navigate = useNavigate();
     const { login, register, isAuthenticated } = useAuth();
-    const { showToast } = useToast();
     const [isLogin, setIsLogin] = useState(true);
     const [formData, setFormData] = useState({
         name: '',
@@ -50,7 +49,7 @@ const Auth = () => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         if (!formData.email.trim()) {
-            errors.email = 'Email обязателен';
+            errors.email = 'Почта обязательна';
         } else if (!emailRegex.test(formData.email)) {
             errors.email = 'Введите корректный email';
         }
@@ -69,7 +68,7 @@ const Auth = () => {
     };
 
     const translateServerError = (field, message) => {
-        const lowerMsg = message.toLowerCase();
+        const lowerMsg = String(message || '').toLowerCase();
 
         if (lowerMsg.includes('already been taken') || lowerMsg.includes('already used')) {
             return field === 'email' ? 'Эта почта уже зарегистрирована' : 'Такое значение уже используется';
@@ -82,7 +81,7 @@ const Auth = () => {
         if (lowerMsg.includes('credentials') || lowerMsg.includes('неверные данные')) {
             return 'Неверная почта или пароль';
         }
-        return message;
+        return translateErrorMessage(message, 'Ошибка авторизации. Проверьте введенные данные.');
     };
 
     const handleSubmit = async (e) => {
@@ -114,13 +113,9 @@ const Auth = () => {
                     serverErrors[field] = translateServerError(field, messages[0]);
                 });
                 setFieldErrors(serverErrors);
-            } else if (err.response?.data?.message) {
-                const translated = translateServerError('general', err.response.data.message);
-                setGeneralError(translated);
-                // Если хотите показывать тост:
-                // showToast('error', translated);
             } else {
-                setGeneralError('Ошибка подключения к серверу. Попробуйте позже.');
+                const translated = getApiErrorMessage(err, 'Ошибка подключения к серверу. Попробуйте позже.');
+                setGeneralError(translated);
             }
         } finally {
             setIsLoading(false);

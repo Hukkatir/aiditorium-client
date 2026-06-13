@@ -15,7 +15,7 @@ import { disciplineService } from '../services/disciplineService';
 import { fileService } from '../services/fileService';
 import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
-import { extractCollection } from '../utils/apiUtils';
+import { extractCollection, getApiErrorMessage } from '../utils/apiUtils';
 import { getTaskMaterials } from '../utils/fileUtils';
 import { getTaskCreatorName } from '../utils/taskPresentation';
 
@@ -188,7 +188,7 @@ const MyTasksPage = () => {
             setEntries(nextEntries);
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить мои задания');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить мои задания'));
         } finally {
             setLoading(false);
         }

@@ -12,7 +12,7 @@ import { courseService } from '../services/courseService';
 import { disciplineService } from '../services/disciplineService';
 import { peerReviewService } from '../services/peerReviewService';
 import { taskService } from '../services/taskService';
-import { extractCollection } from '../utils/apiUtils';
+import { extractCollection, getApiErrorMessage } from '../utils/apiUtils';
 import {
     DEFAULT_PEER_REVIEW_SETTINGS,
     loadPeerReviewSettings,
@@ -27,8 +27,6 @@ import {
 } from '../utils/peerReviewUtils';
 import { getNumericGrade, formatGradeValue } from '../utils/gradeReviewUtils';
 import { buildTaskAiReviewSettingsPath, buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
-
-const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
 
 const formatDateTime = (dateString) => {
     if (!dateString) {
@@ -180,7 +178,7 @@ const TaskPeerReviewSettingsPage = () => {
             }
         } catch (error) {
             console.error(error);
-            showToast('error', getApiMessage(error) || 'Не удалось загрузить настройки взаимопроверки');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить настройки взаимопроверки'));
         } finally {
             setLoading(false);
         }
@@ -237,7 +235,7 @@ const TaskPeerReviewSettingsPage = () => {
             console.error(error);
             setPeerBackendUnavailable(true);
             setSavingPeer(false);
-            showToast('error', getApiMessage(error) || 'Backend взаимопроверки недоступен. Проверьте миграции.');
+            showToast('error', getApiErrorMessage(error, 'Бэкенд взаимопроверки недоступен. Проверьте миграции.'));
         }
     };
 
@@ -273,7 +271,7 @@ const TaskPeerReviewSettingsPage = () => {
             if (![404, 405].includes(error.response?.status)) {
                 console.error(error);
                 setPeerBackendUnavailable(true);
-                showToast('error', getApiMessage(error) || 'Не удалось сформировать задания для взаимопроверки');
+                showToast('error', getApiErrorMessage(error, 'Не удалось сформировать задания для взаимопроверки'));
                 setGeneratingPeerAssignments(false);
                 return;
             }
@@ -357,7 +355,7 @@ const TaskPeerReviewSettingsPage = () => {
                             </p>
                             {peerBackendUnavailable && (
                                 <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm leading-6 text-amber-100">
-                                    Backend взаимопроверки сейчас недоступен. Настройки можно изменить на странице, но для реальной выдачи заданий студентам нужно выполнить миграции на сервере.
+                                    Бэкенд взаимопроверки сейчас недоступен. Настройки можно изменить на странице, но для реальной выдачи заданий студентам нужно выполнить миграции на сервере.
                                 </p>
                             )}
                         </div>

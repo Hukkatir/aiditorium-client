@@ -3,7 +3,7 @@ import { getSlugValidationError, slugHasLetters } from './slugUtils';
 
 test('rejects numeric-only slugs after normalization', () => {
     expect(slugHasLetters('123 456')).toBe(false);
-    expect(getSlugValidationError('123 456')).toBe('slug должен содержать хотя бы одну букву');
+    expect(getSlugValidationError('123 456')).toBe('Короткий URL должен содержать хотя бы одну букву');
 });
 
 test('accepts slugs that keep at least one letter after transliteration', () => {

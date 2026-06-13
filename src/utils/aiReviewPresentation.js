@@ -1,3 +1,6 @@
+import { getRawApiMessage, translateErrorMessage } from './apiUtils';
+import { formatAiModelLabel } from './reviewSettingsUtils';
+
 export const AI_REVIEW_STATUS_META = {
     queued: { label: 'В очереди', className: 'bg-white/10 text-slate-300' },
     extracting: { label: 'Читает файл', className: 'bg-purple-500/10 text-purple-200' },
@@ -6,32 +9,92 @@ export const AI_REVIEW_STATUS_META = {
     failed: { label: 'Ошибка', className: 'bg-red-500/10 text-red-200' }
 };
 
-const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
+const getAiErrorCode = (errorOrMessage) => {
+    if (typeof errorOrMessage === 'object' && errorOrMessage !== null) {
+        const responseCode = errorOrMessage.response?.data?.code
+            || errorOrMessage.response?.status
+            || errorOrMessage.code;
 
-export const getFriendlyAiErrorMessage = (error) => {
-    const message = getApiMessage(error);
+        if (responseCode) {
+            return String(responseCode);
+        }
+    }
+
+    const message = typeof errorOrMessage === 'string'
+        ? errorOrMessage
+        : getRawApiMessage(errorOrMessage);
+    const statusMatch = String(message || '').match(/\b(4\d{2}|5\d{2}|429)\b/);
+    if (statusMatch) {
+        return statusMatch[1];
+    }
+
+    const curlMatch = String(message || '').match(/cURL error\s+(\d+)/i);
+    if (curlMatch) {
+        return `cURL ${curlMatch[1]}`;
+    }
+
+    if (/timeout|timed out/i.test(message)) {
+        return 'timeout';
+    }
+
+    return 'неизвестен';
+};
+
+const getAiModelName = (model = '') => {
+    const value = String(model || '').trim();
+    const normalized = value.toLowerCase();
+
+    if (!value) {
+        return 'выбранная модель';
+    }
+
+    if (normalized.includes('chatgpt') || normalized.includes('gpt-5.5')) {
+        return 'Deepseek v4';
+    }
+
+    return formatAiModelLabel(value) || value;
+};
+
+const extractModelNameFromMessage = (message = '') => {
+    const value = String(message || '');
+
+    if (/chatgpt|gpt-5\.5/i.test(value)) {
+        return 'Deepseek v4';
+    }
+
+    if (/minimax/i.test(value)) {
+        return 'MiniMax';
+    }
+
+    const modelMatch = value.match(/model\s+["']?([^"',\s)]+)/i);
+    return modelMatch?.[1] || '';
+};
+
+const getModelUnavailableMessage = (model, errorOrMessage) => (
+    `модель ${getAiModelName(model)} на данный момент недоступна, код ошибки: ${getAiErrorCode(errorOrMessage)}.`
+);
+
+const isModelAvailabilityError = (message = '') => (
+    /OpenRouter|model|no endpoints found|not a valid model|does not exist|unsupported model|unavailable|too many requests|rate limit|429|5\d\d|empty completion|AI API key|connection failed|timeout|timed out|cURL error 28|gpt-5\.5|chatgpt/i
+        .test(message)
+);
+
+export const getFriendlyAiErrorMessage = (error, model = '') => {
+    const message = getRawApiMessage(error);
 
     if (/ZipArchive/i.test(message)) {
         return 'Не удалось прочитать DOCX-файл для проверки. Попробуйте загрузить работу в другом формате или повторите проверку позже.';
     }
 
-    if (/cURL error 28|timed out|timeout|OpenRouter connection failed/i.test(message)) {
-        return 'OpenRouter не успел ответить вовремя. Backend повторяет такие запросы автоматически; если ошибка повторяется после всех попыток, увеличьте AI_TIMEOUT/AI_OPENROUTER_RETRY_ATTEMPTS или проверьте загруженность модели.';
+    if (isModelAvailabilityError(message)) {
+        return getModelUnavailableMessage(model || extractModelNameFromMessage(message), error);
     }
 
-    if (/Elephant Alpha|Ling-2\.6|ling-2\.6|model.*(not found|unavailable|invalid)|no endpoints found|not a valid model|model .* does not exist|unsupported model/i.test(message)) {
-        return 'Выбранная модель искусственного интеллекта сейчас недоступна в OpenRouter. Проверьте AI_MODEL в backend .env и очистите кеш конфигурации Laravel.';
-    }
-
-    if (/OpenRouter request failed/i.test(message)) {
-        return `OpenRouter вернул ошибку: ${message.replace(/^OpenRouter request failed:\s*/i, '')}`;
-    }
-
-    return message;
+    return translateErrorMessage(message, 'Не удалось выполнить проверку искусственным интеллектом.');
 };
 
-export const formatAiRuntimeMessage = (message = '') => (
-    getFriendlyAiErrorMessage({ response: { data: { message } } }) || message
+export const formatAiRuntimeMessage = (message = '', model = '') => (
+    getFriendlyAiErrorMessage({ response: { data: { message } } }, model)
 );
 
 export const getAiReviewStatus = (review) => {

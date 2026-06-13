@@ -2,10 +2,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HiXMark } from 'react-icons/hi2';
 import { courseService } from '../../services/courseService';
-import { useToast } from '../../context/ToastContext';
+import { getApiErrorMessage } from '../../utils/apiUtils';
 
 const JoinCourseModal = ({ isOpen, onClose, onSuccess }) => {
-    const { showToast } = useToast();
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -25,7 +24,7 @@ const JoinCourseModal = ({ isOpen, onClose, onSuccess }) => {
             setCode('');
         } catch (error) {
             console.error(error);
-            const message = error.response?.data?.message || 'Неверный код или ошибка подключения';
+            const message = getApiErrorMessage(error, 'Неверный код или ошибка подключения');
             setError(message);
         } finally {
             setLoading(false);

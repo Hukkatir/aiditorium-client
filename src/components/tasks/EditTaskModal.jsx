@@ -5,6 +5,7 @@ import RichTextEditor from '../editor/RichTextEditor';
 import FileTileGrid from '../files/FileTileGrid';
 import { taskService } from '../../services/taskService';
 import { useToast } from '../../context/ToastContext';
+import { getApiErrorMessage, getFirstValidationMessage, translateErrorMessage } from '../../utils/apiUtils';
 import { REGULAR_FILE_MAX_BYTES, TASK_MATERIALS_MAX_TOTAL_BYTES, formatFileSize, getFilesOverSizeLimit, getFilesTotalSize, getFirstFileValidationError, getTaskMaterials } from '../../utils/fileUtils';
 
 const mergeUniqueFiles = (previousFiles, nextFiles) => {
@@ -31,10 +32,10 @@ const getDateTimeLocalValue = (date = new Date()) => {
 };
 
 const mapServerErrors = (serverErrors = {}) => ({
-    name: serverErrors.name?.[0] || '',
-    scores: serverErrors.scores?.[0] || '',
-    deadline: serverErrors.deadline?.[0] || '',
-    description: serverErrors.description?.[0] || '',
+    name: serverErrors.name?.[0] ? translateErrorMessage(serverErrors.name[0], 'Проверьте название задания.') : '',
+    scores: serverErrors.scores?.[0] ? translateErrorMessage(serverErrors.scores[0], 'Проверьте баллы задания.') : '',
+    deadline: serverErrors.deadline?.[0] ? translateErrorMessage(serverErrors.deadline[0], 'Проверьте срок сдачи.') : '',
+    description: serverErrors.description?.[0] ? translateErrorMessage(serverErrors.description[0], 'Проверьте описание задания.') : '',
     attachments: getFirstFileValidationError(serverErrors)
 });
 
@@ -208,8 +209,10 @@ const EditTaskModal = ({ isOpen, onClose, onSuccess, task }) => {
             }
 
             const serverErrors = error.response?.data?.errors || {};
-            const firstValidationError = getFirstFileValidationError(serverErrors) || Object.values(serverErrors)?.[0]?.[0];
-            showToast('error', firstValidationError || error.response?.data?.message || 'Не удалось обновить задание');
+            const firstServerValidationError = getFirstValidationMessage(serverErrors);
+            const firstValidationError = getFirstFileValidationError(serverErrors)
+                || (firstServerValidationError ? translateErrorMessage(firstServerValidationError, 'Проверьте заполненные поля.') : '');
+            showToast('error', firstValidationError || getApiErrorMessage(error, 'Не удалось обновить задание'));
         } finally {
             setLoading(false);
         }

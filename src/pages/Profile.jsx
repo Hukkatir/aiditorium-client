@@ -13,6 +13,7 @@ import { useToast } from '../context/ToastContext';
 import { userService } from '../services/userService';
 import MainLayout from '../components/layout/MainLayout';
 import AvatarCropModal from '../components/profile/AvatarCropModal';
+import { getApiErrorMessage, translateErrorMessage } from '../utils/apiUtils';
 
 const ALLOWED_AVATAR_TYPES = new Set([
     'image/jpeg',
@@ -25,9 +26,7 @@ const ALLOWED_AVATAR_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 const MAX_AVATAR_SIZE_BYTES = 3 * 1024 * 1024;
 
 const getAvatarErrorMessage = (error) =>
-    error.response?.data?.errors?.avatar?.[0]
-    || error.response?.data?.message
-    || 'Ошибка загрузки аватара';
+    getApiErrorMessage(error, 'Ошибка загрузки аватара');
 
 const isSupportedAvatarFile = (file) => {
     const fileType = String(file?.type || '').toLowerCase();
@@ -145,7 +144,9 @@ const Profile = () => {
                 resetAvatarCropSource();
                 showToast('success', 'Аватар загружен');
             } else {
-                const message = data.message || 'Ошибка загрузки аватара';
+                const message = data.message
+                    ? translateErrorMessage(data.message, 'Ошибка загрузки аватара')
+                    : 'Ошибка загрузки аватара';
                 setAvatarError(message);
                 showToast('error', message);
             }
@@ -171,7 +172,7 @@ const Profile = () => {
                 setAvatarPreview(null);
                 showToast('success', 'Аватар удалён');
             } else {
-                showToast('error', data.message || 'Ошибка удаления аватара');
+                showToast('error', data.message ? translateErrorMessage(data.message, 'Ошибка удаления аватара') : 'Ошибка удаления аватара');
             }
         } catch (error) {
             console.error(error);
@@ -202,11 +203,11 @@ const Profile = () => {
                 showToast('success', 'Профиль обновлён');
                 setIsEditing(false);
             } else {
-                showToast('error', data.message || 'Ошибка обновления профиля');
+                showToast('error', data.message ? translateErrorMessage(data.message, 'Ошибка обновления профиля') : 'Ошибка обновления профиля');
             }
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.message || 'Ошибка обновления');
+            showToast('error', getApiErrorMessage(error, 'Ошибка обновления'));
         } finally {
             setSaving(false);
         }

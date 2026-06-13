@@ -11,7 +11,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { peerReviewService } from '../../services/peerReviewService';
-import { extractCollection } from '../../utils/apiUtils';
+import { extractCollection, getApiErrorMessage } from '../../utils/apiUtils';
 import { buildFilePreviewPath } from '../../utils/routeUtils';
 import {
     loadAllPeerReviewAssignments,
@@ -26,8 +26,6 @@ const buildTaskPathFromAssignment = (assignment) => (
 const getAssignmentResult = (assignment, results) => (
     results.find((result) => result.assignment_id === assignment.id) || null
 );
-
-const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
 
 const PeerReviewAssignmentsSection = ({ className = '' }) => {
     const { user } = useAuth();
@@ -197,7 +195,7 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
         } catch (error) {
             if (![404, 405].includes(error.response?.status)) {
                 console.error(error);
-                showToast('error', getApiMessage(error) || 'Не удалось сохранить взаимопроверку');
+                showToast('error', getApiErrorMessage(error, 'Не удалось сохранить взаимопроверку'));
                 setSaving(false);
                 return;
             }
@@ -291,7 +289,7 @@ const PeerReviewAssignmentsSection = ({ className = '' }) => {
 
             {backendUnavailable && (
                 <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
-                    Backend взаимопроверки сейчас недоступен. Если заданий здесь нет, попросите преподавателя проверить миграции на сервере.
+                    Бэкенд взаимопроверки сейчас недоступен. Если заданий здесь нет, попросите преподавателя проверить миграции на сервере.
                 </div>
             )}
 

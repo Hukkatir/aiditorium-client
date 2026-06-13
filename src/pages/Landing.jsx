@@ -130,11 +130,6 @@ const Landing = () => {
                                 {/* Внешнее свечение */}
                                 <div className="absolute inset-0 rounded-full bg-gradient-primary opacity-20 blur-3xl" />
 
-                                <div className="absolute -left-24 top-12 z-20 flex items-center gap-3 rounded-2xl border border-purple-400/20 bg-dark/80 px-4 py-3 text-sm font-medium text-purple-100 shadow-xl shadow-purple-500/10 backdrop-blur-md">
-                                    <span>Нажмите на папку</span>
-                                    <HiArrowRight className="h-5 w-5 animate-pulse text-purple-200" />
-                                </div>
-
                                 {/* Папка с контентом */}
                                 <Folder
                                     color="#7B4AFF"

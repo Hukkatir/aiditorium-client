@@ -56,7 +56,7 @@ export const taskService = {
         const fileList = (Array.isArray(files) ? files : [files]).filter(Boolean);
 
         if (!fileList.length) {
-            throw new Error('No files to submit');
+            throw new Error('Выберите хотя бы один файл.');
         }
 
         const results = [];

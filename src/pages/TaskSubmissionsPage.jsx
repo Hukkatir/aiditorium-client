@@ -30,7 +30,7 @@ import { gradeService } from '../services/gradeService';
 import { aiReviewService } from '../services/aiReviewService';
 import { peerReviewService } from '../services/peerReviewService';
 import { taskService } from '../services/taskService';
-import { extractCollection } from '../utils/apiUtils';
+import { extractCollection, getApiErrorMessage, getRawApiMessage } from '../utils/apiUtils';
 import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
 import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import {
@@ -88,10 +88,8 @@ const getCurrentCourseRole = (course, users, user) => {
 
 const emptyPaginatedResponse = { data: [] };
 
-const getApiMessage = (error) => error.response?.data?.error || error.response?.data?.message || '';
-
 const isReviewPermissionError = (error) => {
-    const message = getApiMessage(error);
+    const message = getRawApiMessage(error);
     return error.response?.status === 403 && (
         !message
         ||
@@ -553,7 +551,7 @@ const TaskSubmissionsPage = () => {
             }
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось загрузить сданные работы');
+            showToast('error', getApiErrorMessage(error, 'Не удалось загрузить сданные работы'));
         } finally {
             setLoading(false);
         }
@@ -580,7 +578,7 @@ const TaskSubmissionsPage = () => {
             setTaskComments(extractCollection(commentsData));
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось обновить комментарии');
+            showToast('error', getApiErrorMessage(error, 'Не удалось обновить комментарии'));
         }
     }, [showToast, task?.id]);
 
@@ -612,7 +610,7 @@ const TaskSubmissionsPage = () => {
             showToast('success', 'Доступ к проверке обновлён');
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось обновить проверяющих');
+            showToast('error', getApiErrorMessage(error, 'Не удалось обновить проверяющих'));
         } finally {
             setSavingReviewers(false);
         }
@@ -623,7 +621,7 @@ const TaskSubmissionsPage = () => {
             await fileService.downloadFile(file.id, getDisplayFileName(file));
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось скачать файл');
+            showToast('error', getApiErrorMessage(error, 'Не удалось скачать файл'));
         }
     };
 
@@ -674,7 +672,7 @@ const TaskSubmissionsPage = () => {
         const aiGrade = getAiReviewScore(aiReview);
 
         if (aiGrade === null) {
-            showToast('error', 'AI еще не вернул оценку для этой работы');
+            showToast('error', 'Искусственный интеллект еще не вернул оценку для этой работы');
             return;
         }
 
@@ -804,7 +802,7 @@ const TaskSubmissionsPage = () => {
             await fetchPageData();
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось сохранить оценку');
+            showToast('error', getApiErrorMessage(error, 'Не удалось сохранить оценку'));
         } finally {
             setSavingGradeFor(null);
         }
@@ -862,7 +860,7 @@ const TaskSubmissionsPage = () => {
             void reloadTaskComments();
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить комментарий');
+            showToast('error', getApiErrorMessage(error, 'Не удалось отправить комментарий'));
         }
     };
 
@@ -883,7 +881,7 @@ const TaskSubmissionsPage = () => {
             void reloadTaskComments();
         } catch (error) {
             console.error(error);
-            showToast('error', error.response?.data?.error || error.response?.data?.message || 'Не удалось отправить ответ');
+            showToast('error', getApiErrorMessage(error, 'Не удалось отправить ответ'));
         }
     };
 
