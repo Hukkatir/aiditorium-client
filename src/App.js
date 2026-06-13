@@ -8,10 +8,12 @@ import CourseDetailPage from './pages/CourseDetailPage';
 import DisciplineDetailPage from './pages/DisciplineDetailPage';
 import FilePreviewPage from './pages/FilePreviewPage';
 import MyTasksPage from './pages/MyTasksPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import TaskDetailPage from './pages/TaskDetailPage';
 import TaskPeerReviewSettingsPage from './pages/TaskPeerReviewSettingsPage';
 import TaskReviewSettingsPage from './pages/TaskReviewSettingsPage';
 import TaskSubmissionsPage from './pages/TaskSubmissionsPage';
+import { isGlobalAdmin } from './utils/roleUtils';
 // Защищённый маршрут (без Layout – Layout уже внутри страниц)
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, loading } = useAuth();
@@ -33,6 +35,24 @@ const PublicRoute = ({ children }) => {
     if (isAuthenticated) {
         return <Navigate to="/courses" replace />;
     }
+    return children;
+};
+
+const AdminRoute = ({ children }) => {
+    const { user, isAuthenticated, loading } = useAuth();
+
+    if (loading) {
+        return null;
+    }
+
+    if (!isAuthenticated) {
+        return <Navigate to="/auth" replace />;
+    }
+
+    if (!isGlobalAdmin(user)) {
+        return <Navigate to="/courses" replace />;
+    }
+
     return children;
 };
 
@@ -62,6 +82,11 @@ function App() {
                     <ProtectedRoute>
                         <MyTasksPage />
                     </ProtectedRoute>
+                } />
+                <Route path="/admin" element={
+                    <AdminRoute>
+                        <AdminDashboardPage />
+                    </AdminRoute>
                 } />
                 <Route path="/peer-review" element={
                     <ProtectedRoute>

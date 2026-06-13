@@ -9,11 +9,13 @@ import {
     HiPencilSquare,
     HiMiniRectangleStack,
     HiBars3,
+    HiShieldCheck,
     HiXMark
 } from 'react-icons/hi2';
 import { useAuth } from '../../context/AuthContext';
 import CreateCourseModal from '../courses/CreateCourseModal';
 import JoinCourseModal from '../courses/JoinCourseModal';
+import { isGlobalAdmin } from '../../utils/roleUtils';
 
 const Navbar = ({ sidebarOpen, onToggleSidebar }) => {
     const { user, isAuthenticated, logout } = useAuth();
@@ -22,6 +24,7 @@ const Navbar = ({ sidebarOpen, onToggleSidebar }) => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
     const dropdownRef = useRef(null);
+    const isAdmin = isGlobalAdmin(user);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -79,6 +82,16 @@ const Navbar = ({ sidebarOpen, onToggleSidebar }) => {
                     {/* Кнопки для авторизованных */}
                     {isAuthenticated && (
                         <div className="flex items-center gap-3">
+                            {isAdmin && (
+                                <button
+                                    onClick={() => navigate('/admin')}
+                                    className="hidden items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-100 transition hover:bg-purple-500/20 md:inline-flex"
+                                    title="Перейти в админ-панель"
+                                >
+                                    <HiShieldCheck className="h-4 w-4" />
+                                    <span>Админ-панель</span>
+                                </button>
+                            )}
                             <button
                                 onClick={() => setShowCreateModal(true)}
                                 className="p-2 text-gray-400 hover:text-white transition-colors"
@@ -125,6 +138,18 @@ const Navbar = ({ sidebarOpen, onToggleSidebar }) => {
                                                 <p className="text-sm text-gray-400 truncate">{user?.email}</p>
                                             </div>
                                             <div className="p-2">
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setDropdownOpen(false);
+                                                            navigate('/admin');
+                                                        }}
+                                                        className="w-full flex items-center gap-2 px-3 py-2 text-purple-200 hover:bg-white/5 rounded-lg transition"
+                                                    >
+                                                        <HiShieldCheck className="w-4 h-4" />
+                                                        <span>Перейти в админ-панель</span>
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => {
                                                         setDropdownOpen(false);
