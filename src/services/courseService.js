@@ -56,9 +56,18 @@ export const courseService = {
 
     // Обновить курс (multipart/form-data)
     async updateCourse(courseId, formData) {
-        const response = await apiClient.put(`/course/${courseId}`, formData, {
+        if (formData instanceof FormData) {
+            formData.append('_method', 'PUT');
+        }
+
+        const response = await apiClient.post(`/course/${courseId}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
+        return response.data;
+    },
+
+    async resetCourseBackground(courseId) {
+        const response = await apiClient.delete(`/admin/course/${courseId}/background`);
         return response.data;
     },
 

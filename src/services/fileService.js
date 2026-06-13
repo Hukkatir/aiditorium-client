@@ -55,6 +55,16 @@ export const fileService = {
         return response.data;
     },
 
+    async updateFile(fileId, data) {
+        const response = await apiClient.put(`/file/${fileId}`, data);
+        return response.data;
+    },
+
+    async deleteFile(fileId) {
+        const response = await apiClient.delete(`/file/${fileId}`);
+        return response.data;
+    },
+
     async downloadFile(fileId, fallbackName = 'file') {
         const { blob, fileName } = await getFileAsset(fileId, fallbackName);
 

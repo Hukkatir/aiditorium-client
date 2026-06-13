@@ -17,6 +17,10 @@ import ConfirmModal from '../components/layout/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { adminService } from '../services/adminService';
+import { courseService } from '../services/courseService';
+import { disciplineService } from '../services/disciplineService';
+import { fileService } from '../services/fileService';
+import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 import { getApiErrorMessage } from '../utils/apiUtils';
 import {
@@ -52,6 +56,22 @@ const formatDateTime = (value) => {
         hour: '2-digit',
         minute: '2-digit'
     });
+};
+
+const getDateTimeLocalValue = (value) => {
+    if (!value) {
+        return '';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    date.setSeconds(0, 0);
+    const timezoneOffset = date.getTimezoneOffset() * 60_000;
+
+    return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
 };
 
 const formatFileSize = (size) => {
@@ -128,8 +148,44 @@ const AdminDashboardPage = () => {
         role: 'user'
     });
     const [savingUser, setSavingUser] = useState(false);
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [savingAvatar, setSavingAvatar] = useState(false);
     const [userToDelete, setUserToDelete] = useState(null);
     const [deletingUser, setDeletingUser] = useState(false);
+    const [editingCourse, setEditingCourse] = useState(null);
+    const [courseForm, setCourseForm] = useState({
+        name: '',
+        description: '',
+        slug: '',
+        status: 'active',
+        backgroundFile: null
+    });
+    const [savingCourse, setSavingCourse] = useState(false);
+    const [editingDiscipline, setEditingDiscipline] = useState(null);
+    const [disciplineForm, setDisciplineForm] = useState({
+        name: '',
+        description: '',
+        hours: '',
+        slug: ''
+    });
+    const [savingDiscipline, setSavingDiscipline] = useState(false);
+    const [editingTask, setEditingTask] = useState(null);
+    const [taskForm, setTaskForm] = useState({
+        name: '',
+        description: '',
+        scores: '',
+        deadline: ''
+    });
+    const [savingTask, setSavingTask] = useState(false);
+    const [editingFile, setEditingFile] = useState(null);
+    const [fileForm, setFileForm] = useState({
+        course_id: '',
+        task_id: '',
+        is_public: false
+    });
+    const [savingFile, setSavingFile] = useState(false);
+    const [entityToDelete, setEntityToDelete] = useState(null);
+    const [deletingEntity, setDeletingEntity] = useState(false);
 
     const users = useMemo(() => (Array.isArray(dashboard.users) ? dashboard.users : []), [dashboard.users]);
     const courses = useMemo(() => (Array.isArray(dashboard.courses) ? dashboard.courses : []), [dashboard.courses]);
@@ -233,6 +289,7 @@ const AdminDashboardPage = () => {
             password: '',
             role: getGlobalRoleName(targetUser) || 'user'
         });
+        setAvatarFile(null);
     };
 
     const closeEditUser = () => {
@@ -247,6 +304,7 @@ const AdminDashboardPage = () => {
             password: '',
             role: 'user'
         });
+        setAvatarFile(null);
     };
 
     const saveUser = async () => {
@@ -280,8 +338,13 @@ const AdminDashboardPage = () => {
                 await userService.setUserRole(editingUser.id, nextRole);
             }
 
+            let avatarResponse = null;
+            if (avatarFile) {
+                avatarResponse = await userService.uploadAvatar(editingUser.id, avatarFile);
+            }
+
             if (isSelf && updateResponse.user) {
-                updateUser(updateResponse.user);
+                updateUser(avatarResponse?.user || updateResponse.user);
             }
 
             showToast('success', 'Пользователь обновлен');
@@ -292,12 +355,36 @@ const AdminDashboardPage = () => {
                 password: '',
                 role: 'user'
             });
+            setAvatarFile(null);
             await loadDashboard({ silent: true });
         } catch (error) {
             console.error(error);
             showToast('error', getApiErrorMessage(error, 'Не удалось обновить пользователя'), 5000);
         } finally {
             setSavingUser(false);
+        }
+    };
+
+    const resetUserAvatar = async () => {
+        if (!editingUser || savingAvatar) {
+            return;
+        }
+
+        setSavingAvatar(true);
+
+        try {
+            await userService.deleteAvatar(editingUser.id);
+            setAvatarFile(null);
+            if (Number(editingUser.id) === Number(user?.id)) {
+                updateUser({ ...user, avatar_url: null, avatar: null });
+            }
+            showToast('success', 'Аватар пользователя сброшен');
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось сбросить аватар'), 5000);
+        } finally {
+            setSavingAvatar(false);
         }
     };
 
@@ -328,6 +415,218 @@ const AdminDashboardPage = () => {
             showToast('error', getApiErrorMessage(error, 'Не удалось удалить пользователя'), 5000);
         } finally {
             setDeletingUser(false);
+        }
+    };
+
+    const startEditCourse = (course) => {
+        setEditingCourse(course);
+        setCourseForm({
+            name: course.name || '',
+            description: course.description || '',
+            slug: course.slug || '',
+            status: course.status || 'active',
+            backgroundFile: null
+        });
+    };
+
+    const saveCourse = async () => {
+        if (!editingCourse) {
+            return;
+        }
+
+        if (!courseForm.name.trim()) {
+            showToast('error', 'Введите название курса');
+            return;
+        }
+
+        const payload = new FormData();
+        payload.append('name', courseForm.name.trim());
+        payload.append('description', courseForm.description || '');
+        payload.append('status', courseForm.status || 'active');
+        payload.append('slug', courseForm.slug || '');
+        if (courseForm.backgroundFile) {
+            payload.append('background_logo', courseForm.backgroundFile);
+        }
+
+        setSavingCourse(true);
+
+        try {
+            await courseService.updateCourse(editingCourse.id, payload);
+            showToast('success', 'Курс обновлен');
+            setEditingCourse(null);
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось обновить курс'), 5000);
+        } finally {
+            setSavingCourse(false);
+        }
+    };
+
+    const resetCourseBackground = async () => {
+        if (!editingCourse || savingCourse) {
+            return;
+        }
+
+        setSavingCourse(true);
+
+        try {
+            await courseService.resetCourseBackground(editingCourse.id);
+            setCourseForm((previous) => ({ ...previous, backgroundFile: null }));
+            showToast('success', 'Баннер курса сброшен');
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось сбросить баннер курса'), 5000);
+        } finally {
+            setSavingCourse(false);
+        }
+    };
+
+    const startEditDiscipline = (discipline) => {
+        setEditingDiscipline(discipline);
+        setDisciplineForm({
+            name: discipline.name || '',
+            description: discipline.description || '',
+            hours: discipline.hours ?? '',
+            slug: discipline.slug || ''
+        });
+    };
+
+    const saveDiscipline = async () => {
+        if (!editingDiscipline) {
+            return;
+        }
+
+        if (!disciplineForm.name.trim()) {
+            showToast('error', 'Введите название дисциплины');
+            return;
+        }
+
+        setSavingDiscipline(true);
+
+        try {
+            await disciplineService.updateDiscipline(editingDiscipline.id, {
+                name: disciplineForm.name.trim(),
+                description: disciplineForm.description || '',
+                hours: disciplineForm.hours === '' ? 0 : Number(disciplineForm.hours),
+                slug: disciplineForm.slug || ''
+            });
+            showToast('success', 'Дисциплина обновлена');
+            setEditingDiscipline(null);
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось обновить дисциплину'), 5000);
+        } finally {
+            setSavingDiscipline(false);
+        }
+    };
+
+    const startEditTask = (task) => {
+        setEditingTask(task);
+        setTaskForm({
+            name: task.name || '',
+            description: task.description || '',
+            scores: task.scores ?? '',
+            deadline: getDateTimeLocalValue(task.deadline)
+        });
+    };
+
+    const saveTask = async () => {
+        if (!editingTask) {
+            return;
+        }
+
+        if (!taskForm.name.trim()) {
+            showToast('error', 'Введите название задания');
+            return;
+        }
+
+        const payload = new FormData();
+        payload.append('name', taskForm.name.trim());
+        payload.append('description', taskForm.description || '');
+        if (String(taskForm.scores).trim()) {
+            payload.append('scores', String(Number(taskForm.scores)));
+        }
+        if (taskForm.deadline) {
+            payload.append('deadline', taskForm.deadline);
+        }
+
+        setSavingTask(true);
+
+        try {
+            await taskService.updateTask(editingTask.id, payload);
+            showToast('success', 'Задание обновлено');
+            setEditingTask(null);
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось обновить задание'), 5000);
+        } finally {
+            setSavingTask(false);
+        }
+    };
+
+    const startEditFile = (file) => {
+        setEditingFile(file);
+        setFileForm({
+            course_id: file.course_id ?? '',
+            task_id: file.task_id ?? '',
+            is_public: Boolean(file.is_public)
+        });
+    };
+
+    const saveFile = async () => {
+        if (!editingFile) {
+            return;
+        }
+
+        setSavingFile(true);
+
+        try {
+            await fileService.updateFile(editingFile.id, {
+                course_id: fileForm.course_id === '' ? null : Number(fileForm.course_id),
+                task_id: fileForm.task_id === '' ? null : Number(fileForm.task_id),
+                is_public: Boolean(fileForm.is_public)
+            });
+            showToast('success', 'Файл обновлен');
+            setEditingFile(null);
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось обновить файл'), 5000);
+        } finally {
+            setSavingFile(false);
+        }
+    };
+
+    const confirmDeleteEntity = async () => {
+        if (!entityToDelete || deletingEntity) {
+            return;
+        }
+
+        setDeletingEntity(true);
+
+        try {
+            if (entityToDelete.type === 'course') {
+                await courseService.deleteCourse(entityToDelete.item.id);
+            } else if (entityToDelete.type === 'discipline') {
+                await disciplineService.deleteDiscipline(entityToDelete.item.id);
+            } else if (entityToDelete.type === 'task') {
+                await taskService.deleteTask(entityToDelete.item.id);
+            } else if (entityToDelete.type === 'file') {
+                await fileService.deleteFile(entityToDelete.item.id);
+            }
+
+            showToast('success', `${entityToDelete.label} удален`);
+            setEntityToDelete(null);
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, `Не удалось удалить ${entityToDelete.label.toLowerCase()}`), 5000);
+        } finally {
+            setDeletingEntity(false);
         }
     };
 
@@ -417,9 +716,27 @@ const AdminDashboardPage = () => {
                                 <h3 className="text-lg font-semibold text-white">{course.name || 'Курс без названия'}</h3>
                                 <p className="mt-1 text-sm text-slate-500">Короткий URL: {course.slug || 'не указан'}</p>
                             </div>
-                            <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-                                {getStatusLabel(course.status)}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                                    {getStatusLabel(course.status)}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => startEditCourse(course)}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/15"
+                                >
+                                    <HiPencilSquare className="h-4 w-4" />
+                                    Редактировать
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEntityToDelete({ type: 'course', item: course, label: 'Курс' })}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                                >
+                                    <HiTrash className="h-4 w-4" />
+                                    Удалить
+                                </button>
+                            </div>
                         </div>
                         {course.description && (
                             <p className="mt-3 text-sm leading-6 text-slate-300">{course.description}</p>
@@ -458,6 +775,7 @@ const AdminDashboardPage = () => {
                             <th className="px-4 py-3">Курс</th>
                             <th className="px-4 py-3">Номер</th>
                             <th className="px-4 py-3">Задания</th>
+                            <th className="px-4 py-3 text-right">Действия</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
@@ -470,6 +788,26 @@ const AdminDashboardPage = () => {
                                 <td className="px-4 py-4 text-slate-300">{discipline.course?.name || 'Курс не указан'}</td>
                                 <td className="px-4 py-4 text-slate-300">{discipline.discipline_number || '—'}</td>
                                 <td className="px-4 py-4 text-slate-300">{discipline.tasks_count ?? 0}</td>
+                                <td className="px-4 py-4">
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => startEditDiscipline(discipline)}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/15"
+                                        >
+                                            <HiPencilSquare className="h-4 w-4" />
+                                            Редактировать
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEntityToDelete({ type: 'discipline', item: discipline, label: 'Дисциплина' })}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                                        >
+                                            <HiTrash className="h-4 w-4" />
+                                            Удалить
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -489,6 +827,7 @@ const AdminDashboardPage = () => {
                             <th className="px-4 py-3">Автор</th>
                             <th className="px-4 py-3">Срок</th>
                             <th className="px-4 py-3">Файлы</th>
+                            <th className="px-4 py-3 text-right">Действия</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
@@ -514,6 +853,26 @@ const AdminDashboardPage = () => {
                                     <br />
                                     Сдачи: {task.submissions_count ?? 0}
                                 </td>
+                                <td className="px-4 py-4">
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => startEditTask(task)}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/15"
+                                        >
+                                            <HiPencilSquare className="h-4 w-4" />
+                                            Редактировать
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEntityToDelete({ type: 'task', item: task, label: 'Задание' })}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                                        >
+                                            <HiTrash className="h-4 w-4" />
+                                            Удалить
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -533,6 +892,7 @@ const AdminDashboardPage = () => {
                             <th className="px-4 py-3">Контекст</th>
                             <th className="px-4 py-3">Размер</th>
                             <th className="px-4 py-3">Дата</th>
+                            <th className="px-4 py-3 text-right">Действия</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/10">
@@ -554,6 +914,26 @@ const AdminDashboardPage = () => {
                                 </td>
                                 <td className="px-4 py-4 text-slate-300">{formatFileSize(file.size_bytes)}</td>
                                 <td className="px-4 py-4 text-slate-300">{formatDateTime(file.created_at)}</td>
+                                <td className="px-4 py-4">
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => startEditFile(file)}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/15"
+                                        >
+                                            <HiPencilSquare className="h-4 w-4" />
+                                            Редактировать
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setEntityToDelete({ type: 'file', item: file, label: 'Файл' })}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                                        >
+                                            <HiTrash className="h-4 w-4" />
+                                            Удалить
+                                        </button>
+                                    </div>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -739,6 +1119,29 @@ const AdminDashboardPage = () => {
                                     <p className="mt-2 text-xs text-slate-500">Свою глобальную роль изменить нельзя.</p>
                                 )}
                             </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-2 block text-sm text-slate-400">Аватар</label>
+                                <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                                    <input
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        onChange={(event) => setAvatarFile(event.target.files?.[0] || null)}
+                                        className="min-w-0 flex-1 text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-purple-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-purple-500"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={resetUserAvatar}
+                                        disabled={savingAvatar}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                                    >
+                                        {savingAvatar ? <HiArrowPath className="h-4 w-4 animate-spin" /> : <HiTrash className="h-4 w-4" />}
+                                        Сбросить аватар
+                                    </button>
+                                </div>
+                                {avatarFile && (
+                                    <p className="mt-2 text-xs text-slate-500">Будет загружен файл: {avatarFile.name}</p>
+                                )}
+                            </div>
                         </div>
 
                         <div className="mt-6 flex flex-wrap justify-end gap-3">
@@ -769,6 +1172,357 @@ const AdminDashboardPage = () => {
                 </div>
             )}
 
+            {editingCourse && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-[#1A1A1C] p-6 shadow-2xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Курс</p>
+                                <h2 className="mt-2 text-2xl font-semibold text-white">Редактирование курса</h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => !savingCourse && setEditingCourse(null)}
+                                className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                            >
+                                <HiXMark className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="mt-6 grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Название</label>
+                                <input
+                                    type="text"
+                                    value={courseForm.name}
+                                    onChange={(event) => setCourseForm((previous) => ({ ...previous, name: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Статус</label>
+                                <select
+                                    value={courseForm.status}
+                                    onChange={(event) => setCourseForm((previous) => ({ ...previous, status: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                >
+                                    <option value="active" className="bg-[#1A1A1C]">Активен</option>
+                                    <option value="archived" className="bg-[#1A1A1C]">Архив</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Короткий URL</label>
+                                <input
+                                    type="text"
+                                    value={courseForm.slug}
+                                    onChange={(event) => setCourseForm((previous) => ({ ...previous, slug: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Баннер курса</label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(event) => setCourseForm((previous) => ({ ...previous, backgroundFile: event.target.files?.[0] || null }))}
+                                    className="w-full text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-purple-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-purple-500"
+                                />
+                                {courseForm.backgroundFile && (
+                                    <p className="mt-2 text-xs text-slate-500">Будет загружен файл: {courseForm.backgroundFile.name}</p>
+                                )}
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-2 block text-sm text-slate-400">Описание</label>
+                                <textarea
+                                    rows={4}
+                                    value={courseForm.description}
+                                    onChange={(event) => setCourseForm((previous) => ({ ...previous, description: event.target.value }))}
+                                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-wrap justify-between gap-3">
+                            <button
+                                type="button"
+                                onClick={resetCourseBackground}
+                                disabled={savingCourse}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-red-500/10 px-5 py-3 font-medium text-red-200 transition hover:bg-red-500/20 disabled:opacity-50"
+                            >
+                                <HiTrash className="h-5 w-5" />
+                                Сбросить баннер
+                            </button>
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => !savingCourse && setEditingCourse(null)}
+                                    disabled={savingCourse}
+                                    className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-5 py-3 font-medium text-white transition hover:bg-white/15 disabled:opacity-50"
+                                >
+                                    <HiXMark className="h-5 w-5" />
+                                    Отмена
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={saveCourse}
+                                    disabled={savingCourse}
+                                    className="inline-flex items-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                                >
+                                    {savingCourse ? <HiArrowPath className="h-5 w-5 animate-spin" /> : <HiCheck className="h-5 w-5" />}
+                                    {savingCourse ? 'Сохраняем...' : 'Сохранить'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {editingDiscipline && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-xl rounded-[28px] border border-white/10 bg-[#1A1A1C] p-6 shadow-2xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Дисциплина</p>
+                                <h2 className="mt-2 text-2xl font-semibold text-white">Редактирование дисциплины</h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => !savingDiscipline && setEditingDiscipline(null)}
+                                className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                            >
+                                <HiXMark className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="mt-6 grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Название</label>
+                                <input
+                                    type="text"
+                                    value={disciplineForm.name}
+                                    onChange={(event) => setDisciplineForm((previous) => ({ ...previous, name: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Часы</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={disciplineForm.hours}
+                                    onChange={(event) => setDisciplineForm((previous) => ({ ...previous, hours: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-2 block text-sm text-slate-400">Короткий URL</label>
+                                <input
+                                    type="text"
+                                    value={disciplineForm.slug}
+                                    onChange={(event) => setDisciplineForm((previous) => ({ ...previous, slug: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-2 block text-sm text-slate-400">Описание</label>
+                                <textarea
+                                    rows={4}
+                                    value={disciplineForm.description}
+                                    onChange={(event) => setDisciplineForm((previous) => ({ ...previous, description: event.target.value }))}
+                                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => !savingDiscipline && setEditingDiscipline(null)}
+                                disabled={savingDiscipline}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-5 py-3 font-medium text-white transition hover:bg-white/15 disabled:opacity-50"
+                            >
+                                <HiXMark className="h-5 w-5" />
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                onClick={saveDiscipline}
+                                disabled={savingDiscipline}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                            >
+                                {savingDiscipline ? <HiArrowPath className="h-5 w-5 animate-spin" /> : <HiCheck className="h-5 w-5" />}
+                                {savingDiscipline ? 'Сохраняем...' : 'Сохранить'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {editingTask && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-2xl rounded-[28px] border border-white/10 bg-[#1A1A1C] p-6 shadow-2xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Задание</p>
+                                <h2 className="mt-2 text-2xl font-semibold text-white">Редактирование задания</h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => !savingTask && setEditingTask(null)}
+                                className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                            >
+                                <HiXMark className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="mt-6 grid gap-4 md:grid-cols-3">
+                            <div className="md:col-span-3">
+                                <label className="mb-2 block text-sm text-slate-400">Название</label>
+                                <input
+                                    type="text"
+                                    value={taskForm.name}
+                                    onChange={(event) => setTaskForm((previous) => ({ ...previous, name: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Баллы</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={taskForm.scores}
+                                    onChange={(event) => setTaskForm((previous) => ({ ...previous, scores: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-2 block text-sm text-slate-400">Дата сдачи</label>
+                                <input
+                                    type="datetime-local"
+                                    value={taskForm.deadline}
+                                    onChange={(event) => setTaskForm((previous) => ({ ...previous, deadline: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500 [color-scheme:dark]"
+                                />
+                            </div>
+                            <div className="md:col-span-3">
+                                <label className="mb-2 block text-sm text-slate-400">Описание</label>
+                                <textarea
+                                    rows={5}
+                                    value={taskForm.description}
+                                    onChange={(event) => setTaskForm((previous) => ({ ...previous, description: event.target.value }))}
+                                    className="w-full resize-none rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => !savingTask && setEditingTask(null)}
+                                disabled={savingTask}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-5 py-3 font-medium text-white transition hover:bg-white/15 disabled:opacity-50"
+                            >
+                                <HiXMark className="h-5 w-5" />
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                onClick={saveTask}
+                                disabled={savingTask}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                            >
+                                {savingTask ? <HiArrowPath className="h-5 w-5 animate-spin" /> : <HiCheck className="h-5 w-5" />}
+                                {savingTask ? 'Сохраняем...' : 'Сохранить'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {editingFile && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-xl rounded-[28px] border border-white/10 bg-[#1A1A1C] p-6 shadow-2xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Файл</p>
+                                <h2 className="mt-2 text-2xl font-semibold text-white">Редактирование файла</h2>
+                                <p className="mt-2 text-sm text-slate-500">{editingFile.original_name || editingFile.path}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => !savingFile && setEditingFile(null)}
+                                className="rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                            >
+                                <HiXMark className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="mt-6 grid gap-4 md:grid-cols-2">
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Курс</label>
+                                <select
+                                    value={fileForm.course_id}
+                                    onChange={(event) => setFileForm((previous) => ({ ...previous, course_id: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                >
+                                    <option value="" className="bg-[#1A1A1C]">Без курса</option>
+                                    {courses.map((course) => (
+                                        <option key={course.id} value={course.id} className="bg-[#1A1A1C]">
+                                            {course.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm text-slate-400">Задание</label>
+                                <select
+                                    value={fileForm.task_id}
+                                    onChange={(event) => setFileForm((previous) => ({ ...previous, task_id: event.target.value }))}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-purple-500"
+                                >
+                                    <option value="" className="bg-[#1A1A1C]">Без задания</option>
+                                    {tasks.map((task) => (
+                                        <option key={task.id} value={task.id} className="bg-[#1A1A1C]">
+                                            {task.name || `Задание #${task.id}`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+                                <input
+                                    type="checkbox"
+                                    checked={fileForm.is_public}
+                                    onChange={(event) => setFileForm((previous) => ({ ...previous, is_public: event.target.checked }))}
+                                    className="h-4 w-4 rounded border-white/10 bg-white/10 text-purple-600"
+                                />
+                                Публичный файл
+                            </label>
+                        </div>
+
+                        <div className="mt-6 flex flex-wrap justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => !savingFile && setEditingFile(null)}
+                                disabled={savingFile}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-white/10 px-5 py-3 font-medium text-white transition hover:bg-white/15 disabled:opacity-50"
+                            >
+                                <HiXMark className="h-5 w-5" />
+                                Отмена
+                            </button>
+                            <button
+                                type="button"
+                                onClick={saveFile}
+                                disabled={savingFile}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
+                            >
+                                {savingFile ? <HiArrowPath className="h-5 w-5 animate-spin" /> : <HiCheck className="h-5 w-5" />}
+                                {savingFile ? 'Сохраняем...' : 'Сохранить'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <ConfirmModal
                 isOpen={Boolean(userToDelete)}
                 onClose={() => {
@@ -780,6 +1534,19 @@ const AdminDashboardPage = () => {
                 title="Удалить пользователя?"
                 message={`Пользователь ${userToDelete?.name || userToDelete?.email || ''} будет удален из системы.`}
                 confirmText={deletingUser ? 'Удаляем...' : 'Удалить'}
+                cancelText="Отмена"
+            />
+            <ConfirmModal
+                isOpen={Boolean(entityToDelete)}
+                onClose={() => {
+                    if (!deletingEntity) {
+                        setEntityToDelete(null);
+                    }
+                }}
+                onConfirm={confirmDeleteEntity}
+                title={`Удалить ${entityToDelete?.label?.toLowerCase() || 'объект'}?`}
+                message={`${entityToDelete?.label || 'Объект'} "${entityToDelete?.item?.name || entityToDelete?.item?.original_name || entityToDelete?.item?.path || ''}" будет удален из системы.`}
+                confirmText={deletingEntity ? 'Удаляем...' : 'Удалить'}
                 cancelText="Отмена"
             />
         </MainLayout>
