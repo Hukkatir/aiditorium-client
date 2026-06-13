@@ -788,6 +788,9 @@ const TaskReviewSettingsPage = () => {
                                     const displayedReview = isPendingRecheck && !isAiReviewActive(review)
                                         ? { status: 'queued' }
                                         : review;
+                                    const displayedReviewModel = displayedReview?.ai_model_key
+                                        || displayedReview?.criteria_snapshot_json?.ai_model_key
+                                        || selectedAiModelLabel;
                                     const status = getAiReviewStatus(displayedReview);
                                     const isQueueing = queueingAiReviewFor === group.userId;
 
@@ -831,7 +834,7 @@ const TaskReviewSettingsPage = () => {
 
                                             {displayedReview?.error_message && (
                                                 <p className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm leading-6 text-red-200">
-                                                    {formatAiRuntimeMessage(displayedReview.error_message, displayedReview.model || displayedReview.ai_model_key || selectedAiModelLabel)}
+                                                    {formatAiRuntimeMessage(displayedReview.error_message, displayedReviewModel)}
                                                 </p>
                                             )}
                                         </div>

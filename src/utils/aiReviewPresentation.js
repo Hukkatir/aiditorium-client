@@ -34,10 +34,10 @@ const getAiErrorCode = (errorOrMessage) => {
     }
 
     if (/timeout|timed out/i.test(message)) {
-        return 'timeout';
+        return 'тайм-аут';
     }
 
-    return 'неизвестен';
+    return '';
 };
 
 const getAiModelName = (model = '') => {
@@ -52,7 +52,20 @@ const getAiModelName = (model = '') => {
         return 'Deepseek v4';
     }
 
-    return formatAiModelLabel(value) || value;
+    if (normalized === 'deepseek_v4' || normalized.includes('deepseek')) {
+        return 'Deepseek v4';
+    }
+
+    if (normalized === 'minimax' || normalized.includes('minimax')) {
+        return 'MiniMax';
+    }
+
+    if (normalized.includes('openrouter') || normalized.includes('/') || normalized.includes(':free')) {
+        return 'MiniMax';
+    }
+
+    const formattedModel = formatAiModelLabel(value);
+    return formattedModel && formattedModel !== value ? formattedModel : 'MiniMax';
 };
 
 const extractModelNameFromMessage = (message = '') => {
@@ -70,9 +83,11 @@ const extractModelNameFromMessage = (message = '') => {
     return modelMatch?.[1] || '';
 };
 
-const getModelUnavailableMessage = (model, errorOrMessage) => (
-    `модель ${getAiModelName(model)} на данный момент недоступна, код ошибки: ${getAiErrorCode(errorOrMessage)}.`
-);
+const getModelUnavailableMessage = (model, errorOrMessage) => {
+    const errorCode = getAiErrorCode(errorOrMessage);
+
+    return `модель ${getAiModelName(model)} на данный момент недоступна${errorCode ? `, ${errorCode}` : ''}.`;
+};
 
 const isModelAvailabilityError = (message = '') => (
     /OpenRouter|model|no endpoints found|not a valid model|does not exist|unsupported model|unavailable|too many requests|rate limit|429|5\d\d|empty completion|AI API key|connection failed|timeout|timed out|cURL error 28|gpt-5\.5|chatgpt/i
