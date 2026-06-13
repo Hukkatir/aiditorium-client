@@ -116,6 +116,7 @@ const TaskReviewSettingsPage = () => {
     const [savingProfile, setSavingProfile] = useState(false);
     const [queueingAiReviewFor, setQueueingAiReviewFor] = useState(null);
     const [queueingAllAiReviews, setQueueingAllAiReviews] = useState(false);
+    const [pendingAiReviewStudentIds, setPendingAiReviewStudentIds] = useState(() => new Set());
     const [pollingAiReviews, setPollingAiReviews] = useState(false);
     const [accessDenied, setAccessDenied] = useState(false);
     const [availableModels, setAvailableModels] = useState(DEFAULT_AI_MODEL_OPTIONS);
@@ -177,7 +178,13 @@ const TaskReviewSettingsPage = () => {
     const aiReviewStats = useMemo(() => {
         const stats = { completed: 0, active: 0, failed: 0 };
 
-        aiReviews.forEach((review) => {
+        groupedSubmissions.forEach((group) => {
+            if (pendingAiReviewStudentIds.has(group.userId)) {
+                stats.active += 1;
+                return;
+            }
+
+            const review = latestAiReviewByStudent.get(group.userId);
             const status = String(review?.status?.value || review?.status || '').toLowerCase();
             if (status === 'completed') {
                 stats.completed += 1;
@@ -189,7 +196,7 @@ const TaskReviewSettingsPage = () => {
         });
 
         return stats;
-    }, [aiReviews]);
+    }, [groupedSubmissions, latestAiReviewByStudent, pendingAiReviewStudentIds]);
 
     const selectedAiModelLabel = useMemo(() => (
         availableModels.find((model) => model.key === profileForm.ai_model_key)?.label
@@ -206,6 +213,28 @@ const TaskReviewSettingsPage = () => {
             review,
             ...previous.filter((item) => Number(item.id) !== Number(review.id))
         ]);
+    }, []);
+
+    const markAiReviewsPending = useCallback((studentIds = []) => {
+        setPendingAiReviewStudentIds((previous) => {
+            const next = new Set(previous);
+            studentIds.forEach((studentId) => {
+                if (studentId) {
+                    next.add(Number(studentId));
+                }
+            });
+            return next;
+        });
+    }, []);
+
+    const unmarkAiReviewsPending = useCallback((studentIds = []) => {
+        setPendingAiReviewStudentIds((previous) => {
+            const next = new Set(previous);
+            studentIds.forEach((studentId) => {
+                next.delete(Number(studentId));
+            });
+            return next;
+        });
     }, []);
 
     const fetchData = useCallback(async () => {
@@ -318,6 +347,7 @@ const TaskReviewSettingsPage = () => {
         }
 
         setQueueingAiReviewFor(group.userId);
+        markAiReviewsPending([group.userId]);
 
         try {
             const queueData = await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
@@ -328,6 +358,7 @@ const TaskReviewSettingsPage = () => {
             console.error(error);
             showToast('error', getFriendlyAiErrorMessage(error, selectedAiModelLabel) || 'Не удалось запустить проверку искусственным интеллектом', 6000);
         } finally {
+            unmarkAiReviewsPending([group.userId]);
             setQueueingAiReviewFor(null);
         }
     };
@@ -338,6 +369,10 @@ const TaskReviewSettingsPage = () => {
         }
 
         setQueueingAllAiReviews(true);
+        const pendingStudentIds = groupedSubmissions
+            .filter((group) => group.latestSubmission?.id)
+            .map((group) => group.userId);
+        markAiReviewsPending(pendingStudentIds);
         let successCount = 0;
         let failedMessage = '';
 
@@ -347,9 +382,11 @@ const TaskReviewSettingsPage = () => {
                     const hasReview = latestAiReviewByStudent.has(group.userId);
                     const queueData = await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, hasReview);
                     upsertAiReview(queueData.review);
+                    unmarkAiReviewsPending([group.userId]);
                     successCount += 1;
                 } catch (error) {
                     console.error(error);
+                    unmarkAiReviewsPending([group.userId]);
                     failedMessage = failedMessage || getFriendlyAiErrorMessage(error, selectedAiModelLabel) || 'Не все работы удалось отправить на проверку.';
                 }
             }
@@ -363,6 +400,7 @@ const TaskReviewSettingsPage = () => {
                 showToast('error', failedMessage, 7000);
             }
         } finally {
+            unmarkAiReviewsPending(pendingStudentIds);
             setQueueingAllAiReviews(false);
         }
     };
@@ -746,7 +784,11 @@ const TaskReviewSettingsPage = () => {
                             <div className="mt-5 space-y-3">
                                 {groupedSubmissions.map((group) => {
                                     const review = latestAiReviewByStudent.get(group.userId);
-                                    const status = getAiReviewStatus(review);
+                                    const isPendingRecheck = pendingAiReviewStudentIds.has(group.userId);
+                                    const displayedReview = isPendingRecheck && !isAiReviewActive(review)
+                                        ? { status: 'queued' }
+                                        : review;
+                                    const status = getAiReviewStatus(displayedReview);
                                     const isQueueing = queueingAiReviewFor === group.userId;
 
                                     return (
@@ -767,29 +809,29 @@ const TaskReviewSettingsPage = () => {
                                                         {status.label}
                                                     </span>
                                                     <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-                                                        {formatGradeValue(getAiReviewScore(review), maxScore)}
+                                                        {formatGradeValue(getAiReviewScore(displayedReview), maxScore)}
                                                     </span>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleQueueAiReview(group, Boolean(review))}
-                                                        disabled={isQueueing || pollingAiReviews}
+                                                        disabled={isQueueing || isPendingRecheck || pollingAiReviews || queueingAllAiReviews}
                                                         className="inline-flex items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs font-medium text-purple-100 transition hover:bg-purple-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                                                     >
-                                                        {isQueueing && <HiArrowPath className="h-4 w-4 animate-spin" />}
-                                                        {isQueueing ? 'Запускаем...' : review ? 'Перепроверить' : 'Запустить'}
+                                                        {(isQueueing || isPendingRecheck) && <HiArrowPath className="h-4 w-4 animate-spin" />}
+                                                        {isQueueing || isPendingRecheck ? 'Запускаем...' : review ? 'Перепроверить' : 'Запустить'}
                                                     </button>
                                                 </div>
                                             </div>
 
-                                            {review?.summary && (
+                                            {displayedReview?.summary && (
                                                 <p className="mt-4 whitespace-pre-wrap rounded-xl bg-black/20 px-3 py-2 text-sm leading-6 text-slate-300">
-                                                    {review.summary}
+                                                    {displayedReview.summary}
                                                 </p>
                                             )}
 
-                                            {review?.error_message && (
+                                            {displayedReview?.error_message && (
                                                 <p className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm leading-6 text-red-200">
-                                                    {formatAiRuntimeMessage(review.error_message, review.model || review.ai_model_key || selectedAiModelLabel)}
+                                                    {formatAiRuntimeMessage(displayedReview.error_message, displayedReview.model || displayedReview.ai_model_key || selectedAiModelLabel)}
                                                 </p>
                                             )}
                                         </div>
