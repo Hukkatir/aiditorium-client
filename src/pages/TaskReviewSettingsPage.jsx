@@ -35,6 +35,9 @@ import {
 } from '../utils/aiReviewPresentation';
 import { buildTaskPath, buildTaskPeerReviewSettingsPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
 
+const AI_REVIEW_POLL_INTERVAL_MS = 3000;
+const AI_REVIEW_MIN_POLL_ATTEMPTS = 5;
+
 const getTaskMaxScore = (task) => {
     const score = Number(task?.scores);
     return Number.isFinite(score) && score > 0 ? score : 100;
@@ -194,6 +197,17 @@ const TaskReviewSettingsPage = () => {
         || DEFAULT_AI_MODEL_KEY
     ), [availableModels, profileForm.ai_model_key]);
 
+    const upsertAiReview = useCallback((review) => {
+        if (!review?.id) {
+            return;
+        }
+
+        setAiReviews((previous) => [
+            review,
+            ...previous.filter((item) => Number(item.id) !== Number(review.id))
+        ]);
+    }, []);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         setAccessDenied(false);
@@ -253,25 +267,29 @@ const TaskReviewSettingsPage = () => {
         fetchData();
     }, [fetchData]);
 
-    const pollAiReviewsUntilSettled = useCallback(async (maxAttempts = 240) => {
+    const pollAiReviewsUntilSettled = useCallback(async ({ maxAttempts = 240, minAttempts = AI_REVIEW_MIN_POLL_ATTEMPTS } = {}) => {
         if (!task?.id) {
             return;
         }
 
         setPollingAiReviews(true);
+        let sawActiveReview = false;
 
         try {
             for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
                 const reviewsData = await aiReviewService.getTaskAiReviews(task.id, 100);
                 const nextReviews = extractCollection(reviewsData, 'reviews');
-                setAiReviews(nextReviews);
+                const hasActiveReview = nextReviews.some(isAiReviewActive);
 
-                if (!nextReviews.some(isAiReviewActive)) {
+                setAiReviews(nextReviews);
+                sawActiveReview = sawActiveReview || hasActiveReview;
+
+                if (!hasActiveReview && (sawActiveReview || attempt + 1 >= minAttempts)) {
                     break;
                 }
 
                 await new Promise((resolve) => {
-                    window.setTimeout(resolve, 3000);
+                    window.setTimeout(resolve, AI_REVIEW_POLL_INTERVAL_MS);
                 });
             }
         } catch (error) {
@@ -282,6 +300,18 @@ const TaskReviewSettingsPage = () => {
         }
     }, [showToast, task?.id]);
 
+    useEffect(() => {
+        if (loading || pollingAiReviews || !aiReviews.some(isAiReviewActive)) {
+            return undefined;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            void pollAiReviewsUntilSettled({ minAttempts: 1 });
+        }, AI_REVIEW_POLL_INTERVAL_MS);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [aiReviews, loading, pollAiReviewsUntilSettled, pollingAiReviews]);
+
     const handleQueueAiReview = async (group, forceRecheck = false) => {
         if (!task?.id || !group?.latestSubmission?.id) {
             return;
@@ -290,7 +320,8 @@ const TaskReviewSettingsPage = () => {
         setQueueingAiReviewFor(group.userId);
 
         try {
-            await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
+            const queueData = await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, forceRecheck);
+            upsertAiReview(queueData.review);
             showToast('success', forceRecheck ? 'Повторная проверка искусственным интеллектом запущена' : 'Проверка искусственным интеллектом запущена');
             await pollAiReviewsUntilSettled();
         } catch (error) {
@@ -314,7 +345,8 @@ const TaskReviewSettingsPage = () => {
             for (const group of groupedSubmissions) {
                 try {
                     const hasReview = latestAiReviewByStudent.has(group.userId);
-                    await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, hasReview);
+                    const queueData = await aiReviewService.queueAiReview(task.id, group.latestSubmission.id, hasReview);
+                    upsertAiReview(queueData.review);
                     successCount += 1;
                 } catch (error) {
                     console.error(error);
