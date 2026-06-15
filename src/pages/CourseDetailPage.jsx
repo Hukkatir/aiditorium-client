@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     HiArchiveBox,
     HiArchiveBoxXMark,
+    HiArrowRightOnRectangle,
     HiArrowPath,
     HiBars3,
     HiCalendar,
@@ -109,6 +110,7 @@ const CourseDetailPage = () => {
     const [showDeleteDisciplineConfirm, setShowDeleteDisciplineConfirm] = useState(false);
     const [showDeleteTaskConfirm, setShowDeleteTaskConfirm] = useState(false);
     const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
     const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [showReopenConfirm, setShowReopenConfirm] = useState(false);
@@ -278,6 +280,38 @@ const CourseDetailPage = () => {
         }
     };
 
+    const handleArchiveCourse = async () => {
+        if (!course) {
+            return;
+        }
+
+        try {
+            await courseService.archiveCourse(course.id);
+            showToast('success', 'Курс архивирован');
+            navigate('/courses/archived');
+        } catch (error) {
+            showToast('error', getApiErrorMessage(error, 'Ошибка'));
+        } finally {
+            setShowArchiveConfirm(false);
+        }
+    };
+
+    const handleRestoreCourse = async () => {
+        if (!course) {
+            return;
+        }
+
+        try {
+            await courseService.restoreCourse(course.id);
+            showToast('success', 'Курс восстановлен');
+            navigate('/courses');
+        } catch (error) {
+            showToast('error', getApiErrorMessage(error, 'Ошибка'));
+        } finally {
+            setShowRestoreConfirm(false);
+        }
+    };
+
     const applyCoursePatch = (coursePatch) => {
         const nextCourse = coursePatch?.course || coursePatch;
 
@@ -386,6 +420,22 @@ const CourseDetailPage = () => {
         }
     };
 
+    const handleLeaveCourse = async () => {
+        if (!course || isCreator) {
+            return;
+        }
+
+        try {
+            await courseService.leaveCourse(course.id);
+            showToast('success', 'Вы вышли из курса');
+            navigate('/courses');
+        } catch (error) {
+            showToast('error', getApiErrorMessage(error, 'Не удалось выйти из курса'));
+        } finally {
+            setShowLeaveConfirm(false);
+        }
+    };
+
     if (loading) {
         return (
             <MainLayout>
@@ -488,6 +538,17 @@ const CourseDetailPage = () => {
                                     </button>
                                 </div>
                             </>
+                        )}
+
+                        {currentRole && !isCreator && !isArchived && (
+                            <button
+                                type="button"
+                                onClick={() => setShowLeaveConfirm(true)}
+                                className="inline-flex items-center gap-2 rounded-lg bg-red-600/15 px-3 py-2 text-sm font-medium text-red-200 transition hover:bg-red-600/25"
+                            >
+                                <HiArrowRightOnRectangle className="h-4 w-4" />
+                                Выйти из курса
+                            </button>
                         )}
 
                         {isTeacher && (
@@ -901,15 +962,23 @@ const CourseDetailPage = () => {
             <ConfirmModal
                 isOpen={showArchiveConfirm}
                 onClose={() => setShowArchiveConfirm(false)}
-                onConfirm={() => runCourseAction(courseService.archiveCourse, 'Курс архивирован', setShowArchiveConfirm)}
+                onConfirm={handleArchiveCourse}
                 title="Архивация курса"
                 message="Курс будет перемещён в архив."
                 confirmText="Архивировать"
             />
             <ConfirmModal
+                isOpen={showLeaveConfirm}
+                onClose={() => setShowLeaveConfirm(false)}
+                onConfirm={handleLeaveCourse}
+                title="Выход из курса"
+                message={`Выйти из курса ${course.name}?`}
+                confirmText="Выйти"
+            />
+            <ConfirmModal
                 isOpen={showRestoreConfirm}
                 onClose={() => setShowRestoreConfirm(false)}
-                onConfirm={() => runCourseAction(courseService.restoreCourse, 'Курс восстановлен', setShowRestoreConfirm)}
+                onConfirm={handleRestoreCourse}
                 title="Восстановление курса"
                 message="Курс будет восстановлен из архива."
                 confirmText="Восстановить"

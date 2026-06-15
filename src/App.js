@@ -4,6 +4,7 @@ import Landing from './pages/Landing';
 import Auth from "./pages/Auth";
 import Profile from './pages/Profile';
 import Courses from './pages/Courses';
+import ArchivedCoursesPage from './pages/ArchivedCoursesPage';
 import CourseDetailPage from './pages/CourseDetailPage';
 import DisciplineDetailPage from './pages/DisciplineDetailPage';
 import FilePreviewPage from './pages/FilePreviewPage';
@@ -76,6 +77,11 @@ function App() {
                 <Route path="/courses" element={
                     <ProtectedRoute>
                         <Courses />
+                    </ProtectedRoute>
+                } />
+                <Route path="/courses/archived" element={
+                    <ProtectedRoute>
+                        <ArchivedCoursesPage />
                     </ProtectedRoute>
                 } />
                 <Route path="/my-tasks" element={

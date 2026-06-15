@@ -2,8 +2,8 @@ import apiClient from './apiClient';
 
 export const courseService = {
     // Получить мои курсы
-    async getMyCourses() {
-        const response = await apiClient.get('/course/viewMine');
+    async getMyCourses(params = {}) {
+        const response = await apiClient.get('/course/viewMine', { params });
         return response.data; // предполагаем, что data содержит courses
     },
 
@@ -39,6 +39,11 @@ export const courseService = {
     // Удалить пользователя из курса
     async removeUserFromCourse(courseId, userId) {
         const response = await apiClient.post(`/course/removeUser/${courseId}`, { user_id: userId });
+        return response.data;
+    },
+
+    async leaveCourse(courseId) {
+        const response = await apiClient.get(`/course/${courseId}/leave`);
         return response.data;
     },
 

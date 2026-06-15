@@ -14,8 +14,8 @@ const Courses = () => {
     const fetchCourses = async () => {
         setLoading(true);
         try {
-            const data = await courseService.getMyCourses();
-            setCourses(data.courses?.data || []);
+            const data = await courseService.getMyCourses({ per_page: 200 });
+            setCourses((data.courses?.data || []).filter((course) => course.status !== 'archived'));
         } catch (error) {
             if (error.response?.status !== 404) {
                 console.error('Failed to load courses', error);
@@ -48,10 +48,10 @@ const Courses = () => {
                     className="text-center py-20"
                 >
                     <p className="text-gray-400 text-xl mb-6">
-                        У вас пока нет курсов
+                        Активных курсов нет
                     </p>
                     <p className="text-gray-500">
-                        Используйте кнопки в верхней панели, чтобы создать курс или присоединиться по коду.
+                        Используйте кнопки в верхней панели, чтобы создать курс или присоединиться по коду. Архивные курсы находятся в отдельном разделе.
                     </p>
                 </motion.div>
             ) : (

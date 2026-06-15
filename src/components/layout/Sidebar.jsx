@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { HiAcademicCap, HiMiniRectangleStack } from 'react-icons/hi2';
+import { HiAcademicCap, HiArchiveBox, HiMiniRectangleStack } from 'react-icons/hi2';
 import { useAuth } from '../../context/AuthContext';
 import { courseService } from '../../services/courseService';
 import { buildCoursePath } from '../../utils/routeUtils';
@@ -18,8 +18,8 @@ const Sidebar = ({ isOpen }) => {
 
             setLoading(true);
             try {
-                const data = await courseService.getMyCourses();
-                setCourses(data.courses?.data || []);
+                const data = await courseService.getMyCourses({ per_page: 200 });
+                setCourses((data.courses?.data || []).filter((course) => course.status !== 'archived'));
             } catch (error) {
                 if (error.response?.status !== 404) {
                     console.error('Failed to load courses for sidebar', error);
@@ -85,6 +85,17 @@ const Sidebar = ({ isOpen }) => {
                         )}
 
                         <div className="mt-5 border-t border-white/10 pt-4">
+                            <Link
+                                to="/courses/archived"
+                                className={`mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                                    location.pathname === '/courses/archived'
+                                        ? 'bg-purple-600/20 text-purple-300'
+                                        : 'text-gray-300 hover:bg-white/5'
+                                }`}
+                            >
+                                <HiArchiveBox className="h-4 w-4" />
+                                Архивированные курсы
+                            </Link>
                             <Link
                                 to="/my-tasks"
                                 className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
