@@ -31,7 +31,7 @@ import { aiReviewService } from '../services/aiReviewService';
 import { peerReviewService } from '../services/peerReviewService';
 import { taskService } from '../services/taskService';
 import { extractCollection, getApiErrorMessage, getRawApiMessage } from '../utils/apiUtils';
-import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
+import { addCommentToTree, getCommentFromResponse, normalizeCommentNode, removeCommentFromTree } from '../utils/commentUtils';
 import { getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import {
     buildTaskAiReviewSettingsPath,
@@ -131,6 +131,7 @@ const TaskSubmissionsPage = () => {
     const [courseUsers, setCourseUsers] = useState([]);
     const [submissions, setSubmissions] = useState([]);
     const [taskComments, setTaskComments] = useState([]);
+    const [deletingCommentId, setDeletingCommentId] = useState(null);
     const [reviewers, setReviewers] = useState([]);
     const [reviewerDraftIds, setReviewerDraftIds] = useState([]);
     const [grades, setGrades] = useState([]);
@@ -885,6 +886,26 @@ const TaskSubmissionsPage = () => {
         }
     };
 
+    const handleDeleteComment = async (comment) => {
+        if (!comment?.id || deletingCommentId) {
+            return;
+        }
+
+        setDeletingCommentId(comment.id);
+
+        try {
+            await commentService.deleteComment(comment.id);
+            setTaskComments((previousComments) => removeCommentFromTree(previousComments, comment.id));
+            showToast('success', 'Комментарий удален');
+            void reloadTaskComments();
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось удалить комментарий'));
+        } finally {
+            setDeletingCommentId(null);
+        }
+    };
+
     if (loading) {
         return (
             <MainLayout>
@@ -1588,6 +1609,8 @@ const TaskSubmissionsPage = () => {
                                         currentUserId={user?.id}
                                         onCreate={(body) => handleCreatePrivateComment(selectedGroup, body)}
                                         onReply={handleReplyToPrivateComment}
+                                        onDelete={handleDeleteComment}
+                                        deletingCommentId={deletingCommentId}
                                         emptyMessage="Личная переписка по этой работе пока не началась."
                                         createPlaceholder="Напишите комментарий студенту..."
                                         createLabel="Отправить комментарий"

@@ -26,7 +26,7 @@ import { gradeService } from '../services/gradeService';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
 import { extractCollection, getApiErrorMessage } from '../utils/apiUtils';
-import { addCommentToTree, getCommentFromResponse, normalizeCommentNode } from '../utils/commentUtils';
+import { addCommentToTree, getCommentFromResponse, normalizeCommentNode, removeCommentFromTree } from '../utils/commentUtils';
 import { REGULAR_FILE_MAX_BYTES, formatFileSize, getFilesOverSizeLimit, getFirstFileValidationError, getDisplayFileName, getTaskMaterials } from '../utils/fileUtils';
 import { buildDisciplinePath, buildTaskPath, buildTaskSubmissionsPath } from '../utils/routeUtils';
 
@@ -107,6 +107,7 @@ const TaskDetailPage = () => {
     const [removingSubmissionId, setRemovingSubmissionId] = useState(null);
     const [ownSubmissions, setOwnSubmissions] = useState([]);
     const [taskComments, setTaskComments] = useState([]);
+    const [deletingCommentId, setDeletingCommentId] = useState(null);
     const [myGrade, setMyGrade] = useState(null);
 
     const isTeacher = currentRole === 'teacher';
@@ -433,6 +434,25 @@ const TaskDetailPage = () => {
         }
     };
 
+    const handleDeleteComment = async (comment) => {
+        if (!comment?.id || deletingCommentId) {
+            return;
+        }
+
+        setDeletingCommentId(comment.id);
+
+        try {
+            await commentService.deleteComment(comment.id);
+            setTaskComments((previousComments) => removeCommentFromTree(previousComments, comment.id));
+            showToast('success', 'Комментарий удален');
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось удалить комментарий'));
+        } finally {
+            setDeletingCommentId(null);
+        }
+    };
+
     if (loading) {
         return (
             <MainLayout>
@@ -580,6 +600,8 @@ const TaskDetailPage = () => {
                                 currentUserId={user?.id}
                                 onCreate={handleCreatePublicComment}
                                 onReply={handleReplyToPublicComment}
+                                onDelete={handleDeleteComment}
+                                deletingCommentId={deletingCommentId}
                                 emptyMessage="Пока никто не оставил комментарий."
                                 createPlaceholder="Напишите комментарий..."
                                 createLabel="Отправить"
@@ -684,6 +706,8 @@ const TaskDetailPage = () => {
                                 currentUserId={user?.id}
                                 onCreate={latestSubmission ? handleCreatePrivateComment : null}
                                 onReply={latestSubmission ? handleReplyToPrivateComment : null}
+                                onDelete={handleDeleteComment}
+                                deletingCommentId={deletingCommentId}
                                 emptyMessage="Личная переписка по вашей работе пока не началась."
                                 createPlaceholder="Напишите личный комментарий..."
                                 createLabel="Отправить"

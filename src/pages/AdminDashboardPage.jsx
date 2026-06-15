@@ -131,6 +131,11 @@ const getRoleBadgeClass = (role) => (
         : 'bg-white/10 text-slate-300'
 );
 
+const COURSE_ROLE_OPTIONS = [
+    { value: 'student', label: 'Ученик' },
+    { value: 'teacher', label: 'Преподаватель' }
+];
+
 const AdminDashboardPage = () => {
     const { user, updateUser } = useAuth();
     const { showToast } = useToast();
@@ -186,6 +191,10 @@ const AdminDashboardPage = () => {
     const [savingFile, setSavingFile] = useState(false);
     const [entityToDelete, setEntityToDelete] = useState(null);
     const [deletingEntity, setDeletingEntity] = useState(false);
+    const [courseMemberForms, setCourseMemberForms] = useState({});
+    const [savingCourseMemberFor, setSavingCourseMemberFor] = useState(null);
+    const [memberToRemove, setMemberToRemove] = useState(null);
+    const [removingCourseMember, setRemovingCourseMember] = useState(false);
 
     const users = useMemo(() => (Array.isArray(dashboard.users) ? dashboard.users : []), [dashboard.users]);
     const courses = useMemo(() => (Array.isArray(dashboard.courses) ? dashboard.courses : []), [dashboard.courses]);
@@ -483,6 +492,75 @@ const AdminDashboardPage = () => {
         }
     };
 
+    const getCourseMemberForm = (courseId) => (
+        courseMemberForms[courseId] || { user_id: '', role: 'student' }
+    );
+
+    const updateCourseMemberForm = (courseId, updates) => {
+        setCourseMemberForms((previous) => ({
+            ...previous,
+            [courseId]: {
+                user_id: '',
+                role: 'student',
+                ...(previous[courseId] || {}),
+                ...updates
+            }
+        }));
+    };
+
+    const addCourseMember = async (course) => {
+        const form = getCourseMemberForm(course.id);
+        const userId = Number(form.user_id);
+
+        if (!userId) {
+            showToast('error', 'Выберите пользователя для добавления в курс');
+            return;
+        }
+
+        setSavingCourseMemberFor(course.id);
+
+        try {
+            await adminService.addCourseUser(course.id, userId, form.role || 'student');
+            showToast('success', 'Участник курса добавлен');
+            setCourseMemberForms((previous) => ({
+                ...previous,
+                [course.id]: { user_id: '', role: 'student' }
+            }));
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось добавить участника в курс'), 5000);
+        } finally {
+            setSavingCourseMemberFor(null);
+        }
+    };
+
+    const confirmRemoveCourseMember = async () => {
+        if (!memberToRemove || removingCourseMember) {
+            return;
+        }
+
+        if (Number(memberToRemove.member?.id) === Number(memberToRemove.course?.creator_id)) {
+            showToast('error', 'Нельзя исключить создателя курса');
+            setMemberToRemove(null);
+            return;
+        }
+
+        setRemovingCourseMember(true);
+
+        try {
+            await adminService.removeCourseUser(memberToRemove.course.id, memberToRemove.member.id);
+            showToast('success', 'Участник исключен из курса');
+            setMemberToRemove(null);
+            await loadDashboard({ silent: true });
+        } catch (error) {
+            console.error(error);
+            showToast('error', getApiErrorMessage(error, 'Не удалось исключить участника из курса'), 5000);
+        } finally {
+            setRemovingCourseMember(false);
+        }
+    };
+
     const startEditDiscipline = (discipline) => {
         setEditingDiscipline(discipline);
         setDisciplineForm({
@@ -709,58 +787,154 @@ const AdminDashboardPage = () => {
     const renderCourses = () => (
         filteredCourses.length === 0 ? renderEmptyState('Курсы не найдены.') : (
             <div className="grid gap-3">
-                {filteredCourses.map((course) => (
-                    <article key={course.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                                <h3 className="text-lg font-semibold text-white">{course.name || 'Курс без названия'}</h3>
-                                <p className="mt-1 text-sm text-slate-500">Короткий URL: {course.slug || 'не указан'}</p>
+                {filteredCourses.map((course) => {
+                    const courseUsers = Array.isArray(course.users) ? course.users : [];
+                    const enrolledUserIds = new Set(courseUsers.map((member) => Number(member.id)));
+                    const availableUsers = users.filter((item) => !enrolledUserIds.has(Number(item.id)));
+                    const memberForm = getCourseMemberForm(course.id);
+                    const isSavingMember = Number(savingCourseMemberFor) === Number(course.id);
+
+                    return (
+                        <article key={course.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white">{course.name || 'Курс без названия'}</h3>
+                                    <p className="mt-1 text-sm text-slate-500">Короткий URL: {course.slug || 'не указан'}</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                                        {getStatusLabel(course.status)}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => startEditCourse(course)}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/15"
+                                    >
+                                        <HiPencilSquare className="h-4 w-4" />
+                                        Редактировать
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEntityToDelete({ type: 'course', item: course, label: 'Курс' })}
+                                        className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
+                                    >
+                                        <HiTrash className="h-4 w-4" />
+                                        Удалить
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-                                    {getStatusLabel(course.status)}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => startEditCourse(course)}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/15"
-                                >
-                                    <HiPencilSquare className="h-4 w-4" />
-                                    Редактировать
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setEntityToDelete({ type: 'course', item: course, label: 'Курс' })}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20"
-                                >
-                                    <HiTrash className="h-4 w-4" />
-                                    Удалить
-                                </button>
+                            {course.description && (
+                                <p className="mt-3 text-sm leading-6 text-slate-300">{course.description}</p>
+                            )}
+                            <div className="mt-4 grid gap-2 text-sm sm:grid-cols-4">
+                                <div className="rounded-xl bg-black/20 p-3">
+                                    <p className="text-slate-500">Участники</p>
+                                    <p className="mt-1 font-semibold text-white">{course.users_count ?? courseUsers.length}</p>
+                                </div>
+                                <div className="rounded-xl bg-black/20 p-3">
+                                    <p className="text-slate-500">Дисциплины</p>
+                                    <p className="mt-1 font-semibold text-white">{course.disciplines_count ?? course.disciplines?.length ?? 0}</p>
+                                </div>
+                                <div className="rounded-xl bg-black/20 p-3">
+                                    <p className="text-slate-500">Задания</p>
+                                    <p className="mt-1 font-semibold text-white">{course.tasks_count ?? 0}</p>
+                                </div>
+                                <div className="rounded-xl bg-black/20 p-3">
+                                    <p className="text-slate-500">Файлы</p>
+                                    <p className="mt-1 font-semibold text-white">{course.files_count ?? 0}</p>
+                                </div>
                             </div>
-                        </div>
-                        {course.description && (
-                            <p className="mt-3 text-sm leading-6 text-slate-300">{course.description}</p>
-                        )}
-                        <div className="mt-4 grid gap-2 text-sm sm:grid-cols-4">
-                            <div className="rounded-xl bg-black/20 p-3">
-                                <p className="text-slate-500">Участники</p>
-                                <p className="mt-1 font-semibold text-white">{course.users_count ?? course.users?.length ?? 0}</p>
+
+                            <div className="mt-5 border-t border-white/10 pt-4">
+                                <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-white">Участники курса</h4>
+                                        <p className="mt-1 text-xs text-slate-500">Добавление пользователя напрямую с ролью в курсе.</p>
+                                    </div>
+                                    <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_150px_auto]">
+                                        <select
+                                            value={memberForm.user_id}
+                                            onChange={(event) => updateCourseMemberForm(course.id, { user_id: event.target.value })}
+                                            disabled={!availableUsers.length || isSavingMember}
+                                            className="min-w-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <option value="" className="bg-[#1A1A1C]">
+                                                {availableUsers.length ? 'Выберите пользователя' : 'Все пользователи уже в курсе'}
+                                            </option>
+                                            {availableUsers.map((availableUser) => (
+                                                <option key={availableUser.id} value={availableUser.id} className="bg-[#1A1A1C]">
+                                                    {availableUser.name || availableUser.email || `Пользователь #${availableUser.id}`}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={memberForm.role}
+                                            onChange={(event) => updateCourseMemberForm(course.id, { role: event.target.value })}
+                                            disabled={isSavingMember}
+                                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {COURSE_ROLE_OPTIONS.map((role) => (
+                                                <option key={role.value} value={role.value} className="bg-[#1A1A1C]">
+                                                    {role.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={() => addCourseMember(course)}
+                                            disabled={!memberForm.user_id || isSavingMember}
+                                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {isSavingMember ? <HiArrowPath className="h-4 w-4 animate-spin" /> : <HiCheck className="h-4 w-4" />}
+                                            Добавить
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {courseUsers.length ? (
+                                    <div className="mt-4 divide-y divide-white/10 rounded-xl border border-white/10">
+                                        {courseUsers.map((member) => {
+                                            const isCreator = Number(member.id) === Number(course.creator_id);
+
+                                            return (
+                                                <div key={member.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate font-medium text-white">{member.name || 'Пользователь'}</p>
+                                                        <p className="truncate text-xs text-slate-500">{member.email || 'Почта не указана'}</p>
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="rounded-full bg-white/[0.06] px-3 py-1 text-xs text-slate-300">
+                                                            {formatCourseRoleLabel(member.pivot?.role)}
+                                                        </span>
+                                                        {isCreator && (
+                                                            <span className="rounded-full bg-purple-500/15 px-3 py-1 text-xs text-purple-100">
+                                                                Создатель
+                                                            </span>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setMemberToRemove({ course, member })}
+                                                            disabled={isCreator || removingCourseMember}
+                                                            title={isCreator ? 'Создателя курса нельзя исключить' : undefined}
+                                                            className="inline-flex items-center gap-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        >
+                                                            <HiTrash className="h-4 w-4" />
+                                                            Исключить
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-slate-500">
+                                        В курсе пока нет участников.
+                                    </p>
+                                )}
                             </div>
-                            <div className="rounded-xl bg-black/20 p-3">
-                                <p className="text-slate-500">Дисциплины</p>
-                                <p className="mt-1 font-semibold text-white">{course.disciplines_count ?? course.disciplines?.length ?? 0}</p>
-                            </div>
-                            <div className="rounded-xl bg-black/20 p-3">
-                                <p className="text-slate-500">Задания</p>
-                                <p className="mt-1 font-semibold text-white">{course.tasks_count ?? 0}</p>
-                            </div>
-                            <div className="rounded-xl bg-black/20 p-3">
-                                <p className="text-slate-500">Файлы</p>
-                                <p className="mt-1 font-semibold text-white">{course.files_count ?? 0}</p>
-                            </div>
-                        </div>
-                    </article>
-                ))}
+                        </article>
+                    );
+                })}
             </div>
         )
     );
@@ -1534,6 +1708,19 @@ const AdminDashboardPage = () => {
                 title="Удалить пользователя?"
                 message={`Пользователь ${userToDelete?.name || userToDelete?.email || ''} будет удален из системы.`}
                 confirmText={deletingUser ? 'Удаляем...' : 'Удалить'}
+                cancelText="Отмена"
+            />
+            <ConfirmModal
+                isOpen={Boolean(memberToRemove)}
+                onClose={() => {
+                    if (!removingCourseMember) {
+                        setMemberToRemove(null);
+                    }
+                }}
+                onConfirm={confirmRemoveCourseMember}
+                title="Исключить участника?"
+                message={`Пользователь ${memberToRemove?.member?.name || memberToRemove?.member?.email || ''} будет исключен из курса "${memberToRemove?.course?.name || ''}".`}
+                confirmText={removingCourseMember ? 'Исключаем...' : 'Исключить'}
                 cancelText="Отмена"
             />
             <ConfirmModal

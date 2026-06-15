@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { HiChatBubbleLeftEllipsis } from 'react-icons/hi2';
+import { HiChatBubbleLeftEllipsis, HiTrash } from 'react-icons/hi2';
 import CommentComposer from './CommentComposer';
 
 const formatCommentDate = (dateString) => {
@@ -64,13 +64,17 @@ const CommentItem = ({
     comment,
     currentUserId,
     onReply,
+    onDelete,
     replyEnabled,
+    deletingCommentId,
     styles,
     depth = 0
 }) => {
     const [isReplyOpen, setIsReplyOpen] = useState(false);
     const replies = useMemo(() => [...getReplies(comment)].sort(sortByCreatedAt), [comment]);
     const isOwnComment = Number(comment.user_id) === Number(currentUserId);
+    const isDeleting = Number(deletingCommentId) === Number(comment.id);
+    const canDelete = isOwnComment && Boolean(onDelete);
 
     return (
         <div className={depth > 0 ? 'relative ml-4 border-l border-white/10 pl-4 sm:ml-6 sm:pl-5' : ''}>
@@ -96,9 +100,9 @@ const CommentItem = ({
                             {comment.body || comment.content}
                         </p>
 
-                        {replyEnabled && onReply && (
-                            <div className="mt-2">
-                                {!isReplyOpen ? (
+                        {(replyEnabled && onReply) || canDelete ? (
+                            <div className="mt-2 flex flex-wrap items-center gap-3">
+                                {replyEnabled && onReply && (!isReplyOpen ? (
                                     <button
                                         type="button"
                                         onClick={() => setIsReplyOpen(true)}
@@ -107,7 +111,7 @@ const CommentItem = ({
                                         Ответить
                                     </button>
                                 ) : (
-                                    <div className={`mt-3 max-w-2xl rounded-xl border p-3 ${styles.composer}`}>
+                                    <div className={`mt-3 w-full max-w-2xl rounded-xl border p-3 ${styles.composer}`}>
                                         <CommentComposer
                                             compact
                                             placeholder="Напишите ответ..."
@@ -118,9 +122,20 @@ const CommentItem = ({
                                             }}
                                         />
                                     </div>
+                                ))}
+                                {canDelete && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onDelete(comment)}
+                                        disabled={isDeleting}
+                                        className="inline-flex items-center gap-1.5 text-xs font-medium text-red-300 transition hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <HiTrash className="h-3.5 w-3.5" />
+                                        {isDeleting ? 'Удаляем...' : 'Удалить'}
+                                    </button>
                                 )}
                             </div>
-                        )}
+                        ) : null}
                     </div>
                 </div>
             </article>
@@ -133,7 +148,9 @@ const CommentItem = ({
                             comment={reply}
                             currentUserId={currentUserId}
                             onReply={onReply}
+                            onDelete={onDelete}
                             replyEnabled={replyEnabled}
+                            deletingCommentId={deletingCommentId}
                             styles={styles}
                             depth={depth + 1}
                         />
@@ -151,6 +168,7 @@ const CommentThreadList = ({
     currentUserId,
     onCreate,
     onReply,
+    onDelete,
     emptyMessage,
     createPlaceholder,
     createLabel,
@@ -162,7 +180,8 @@ const CommentThreadList = ({
     composerMode = 'always',
     composerPosition = 'top',
     composerTriggerLabel = 'Добавить комментарий',
-    hideEmptyState = false
+    hideEmptyState = false,
+    deletingCommentId = null
 }) => {
     const sortedComments = useMemo(() => [...comments].sort(sortByCreatedAt), [comments]);
     const styles = VARIANT_STYLES[variant] || VARIANT_STYLES.default;
@@ -229,7 +248,9 @@ const CommentThreadList = ({
                         comment={comment}
                         currentUserId={currentUserId}
                         onReply={onReply}
+                        onDelete={onDelete}
                         replyEnabled={replyEnabled}
+                        deletingCommentId={deletingCommentId}
                         styles={styles}
                     />
                 ))}

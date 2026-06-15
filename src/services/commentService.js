@@ -171,6 +171,11 @@ export const commentService = {
         return response.data;
     },
 
+    async deleteComment(commentId) {
+        const response = await apiClient.delete(`/comment/${commentId}`);
+        return response.data;
+    },
+
     async getTaskComments(taskId, perPage = 100) {
         const response = await apiClient.post('/comment/viewTask', {
             task_id: taskId,

@@ -100,3 +100,10 @@ export const addCommentToTree = (comments, comment) => {
 
     return nextTree.inserted ? nextTree.comments : comments;
 };
+
+export const removeCommentFromTree = (comments, commentId) => comments
+    .filter((comment) => !sameId(comment.id, commentId))
+    .map((comment) => ({
+        ...comment,
+        replies: removeCommentFromTree(getNestedReplies(comment), commentId)
+    }));
